@@ -239,18 +239,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (mapped.roles.some((role) => ['Admin', 'Scheduler', 'Doctor'].includes(role))) setInternalSession(mapped);
           }
 
+          const handleTokenRefreshSuccess = () => {
+            const mapped = mapKeycloakSession(keycloakInstance);
+            setPatientSession(mapped.roles.includes('Patient') ? mapped : null);
+            setInternalSession(
+              mapped.roles.some((role) => ['Admin', 'Scheduler', 'Doctor'].includes(role)) ? mapped : null
+            );
+          };
+
+          const handleTokenRefreshFailure = () => {
+            setPatientSession(null);
+            setInternalSession(null);
+          };
+
           keycloakInstance.onTokenExpired = () => {
             keycloakInstance
               .updateToken(30)
-              .then(() => {
-                const mapped = mapKeycloakSession(keycloakInstance);
-                setPatientSession(mapped.roles.includes('Patient') ? mapped : null);
-                setInternalSession(mapped.roles.some((role) => ['Admin', 'Scheduler', 'Doctor'].includes(role)) ? mapped : null);
-              })
-              .catch(() => {
-                setPatientSession(null);
-                setInternalSession(null);
-              });
+              .then(handleTokenRefreshSuccess)
+              .catch(handleTokenRefreshFailure);
           };
 
           setReady(true);
