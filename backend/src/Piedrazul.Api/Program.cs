@@ -11,7 +11,6 @@ using Piedrazul.Application;
 using Piedrazul.Infrastructure;
 using Piedrazul.Infrastructure.Persistence;
 using Piedrazul.Infrastructure.Security;
-using Piedrazul.Infrastructure.Seeding;
 using AppAuthenticationOptions = Piedrazul.Api.Configuration.AuthenticationOptions;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -131,11 +130,6 @@ app.UseAuthorization();
 app.UseRateLimiter();
 app.MapControllers().RequireRateLimiting("global");
 
-using (var scope = app.Services.CreateScope())
-{
-    var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    await dbContext.Database.EnsureCreatedAsync();
-    await DataSeeder.SeedAsync(dbContext);
-}
+await DatabaseInitializer.MigrateAndSeedAsync(app.Services);
 
 app.Run();

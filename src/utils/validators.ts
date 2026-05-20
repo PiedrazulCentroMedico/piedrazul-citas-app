@@ -109,8 +109,8 @@ export function validateAvailabilityEntries(entries: Array<{
       errors.push(`${label}: la hora de fin debe ser posterior a la hora de inicio.`);
     }
 
-    if (!Number.isInteger(entry.slotIntervalMinutes) || entry.slotIntervalMinutes < 5 || entry.slotIntervalMinutes > 120) {
-      errors.push(`${label}: el intervalo debe estar entre 5 y 120 minutos.`);
+    if (!Number.isInteger(entry.slotIntervalMinutes) || entry.slotIntervalMinutes < 10 || entry.slotIntervalMinutes > 120) {
+      errors.push(`${label}: el intervalo debe estar entre 10 y 120 minutos.`);
     }
 
     if (duration > 0 && entry.slotIntervalMinutes > duration) {

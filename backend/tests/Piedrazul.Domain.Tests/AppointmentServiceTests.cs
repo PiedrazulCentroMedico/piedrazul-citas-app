@@ -8,7 +8,7 @@ using Xunit;
 namespace Piedrazul.Domain.Tests;
 
 /// <summary>
-/// Tests del AppointmentService usando implementaciones falsas (fake/stub) de los repositorios
+/// Tests de los servicios de citas usando implementaciones falsas (fake/stub) de los repositorios
 /// e infraestructura, sin depender de base de datos ni servicios externos.
 /// </summary>
 public sealed class AppointmentServiceTests
@@ -127,20 +127,82 @@ public sealed class AppointmentServiceTests
             Array.Empty<byte>();
     }
 
-    // ── Factory del servicio bajo prueba ─────────────────────────────────────
+    private sealed class NoOpExcelExporter : IAppointmentExcelExporter
+    {
+        public byte[] Export(string c, string p, string s, DateOnly d, IReadOnlyList<AppointmentResponse> items) =>
+            Array.Empty<byte>();
+    }
 
-    private static AppointmentService BuildService(
+    /// <summary>
+    /// Fake IAvailabilityService que devuelve un slot disponible a las 09:00.
+    /// Usado por AppointmentBookingService y AppointmentLifecycleService en tests.
+    /// </summary>
+    private sealed class FakeAvailabilityService : IAvailabilityService
+    {
+        public Task<IReadOnlyList<ProviderSummaryResponse>> GetActiveProvidersAsync(CancellationToken ct = default) =>
+            Task.FromResult<IReadOnlyList<ProviderSummaryResponse>>(Array.Empty<ProviderSummaryResponse>());
+
+        public Task<OperationResult<IReadOnlyList<AvailabilitySlotResponse>>> GetAvailabilityAsync(Guid providerId, DateOnly date, CancellationToken ct = default) =>
+            Task.FromResult(OperationResult<IReadOnlyList<AvailabilitySlotResponse>>.Success(
+                (IReadOnlyList<AvailabilitySlotResponse>)new List<AvailabilitySlotResponse>
+                {
+                    new("09:00", "09:30", Available: true)
+                }));
+    }
+
+    // ── Factory helpers ───────────────────────────────────────────────────────
+
+    private static AppointmentBookingService BuildBookingService(
         FakeAppointmentRepo? appointmentRepo = null,
         FakePatientRepo? patientRepo = null)
     {
-        return new AppointmentService(
+        return new AppointmentBookingService(
             appointmentRepo ?? new FakeAppointmentRepo(),
             patientRepo ?? new FakePatientRepo(),
             new FakeSettingsRepo(),
-            new NoOpPdfExporter(),
+            new FakeAvailabilityService(),
             new PassThroughCache(),
             new NoOpAuditLogger(),
             new NoOpNotifications());
+    }
+
+    private static AvailabilityService BuildAvailabilityService(
+        FakeAppointmentRepo? appointmentRepo = null)
+    {
+        return new AvailabilityService(
+            appointmentRepo ?? new FakeAppointmentRepo(),
+            new FakeSettingsRepo(),
+            new PassThroughCache());
+    }
+
+    private static AppointmentQueryService BuildQueryService(
+        FakeAppointmentRepo? appointmentRepo = null)
+    {
+        return new AppointmentQueryService(
+            appointmentRepo ?? new FakeAppointmentRepo(),
+            new NoOpPdfExporter(),
+            new NoOpExcelExporter());
+    }
+
+    private static AppointmentLifecycleService BuildLifecycleService(
+        FakeAppointmentRepo? appointmentRepo = null)
+    {
+        return new AppointmentLifecycleService(
+            appointmentRepo ?? new FakeAppointmentRepo(),
+            new FakeSettingsRepo(),
+            new FakeAvailabilityService(),
+            new PassThroughCache(),
+            new NoOpAuditLogger(),
+            new NoOpNotifications());
+    }
+
+    private static PatientLookupService BuildPatientLookupService(
+        FakePatientRepo? patientRepo = null,
+        FakeAppointmentRepo? appointmentRepo = null)
+    {
+        return new PatientLookupService(
+            patientRepo ?? new FakePatientRepo(),
+            appointmentRepo ?? new FakeAppointmentRepo());
     }
 
     // ── CreatePublicAppointment – validaciones de campos ─────────────────────
@@ -148,7 +210,7 @@ public sealed class AppointmentServiceTests
     [Fact]
     public async Task CreatePublicAppointment_ShouldReturnValidation_WhenProviderIdIsEmpty()
     {
-        var service = BuildService();
+        var service = BuildBookingService();
         var request = new PublicAppointmentRequest
         {
             ProviderId = Guid.Empty,                                          // ← inválido
@@ -170,7 +232,7 @@ public sealed class AppointmentServiceTests
     [Fact]
     public async Task CreatePublicAppointment_ShouldReturnValidation_WhenDateIsDefault()
     {
-        var service = BuildService();
+        var service = BuildBookingService();
         var request = new PublicAppointmentRequest
         {
             ProviderId = Guid.NewGuid(),
@@ -192,7 +254,7 @@ public sealed class AppointmentServiceTests
     [Fact]
     public async Task CreatePublicAppointment_ShouldReturnValidation_WhenStartTimeIsEmpty()
     {
-        var service = BuildService();
+        var service = BuildBookingService();
         var request = new PublicAppointmentRequest
         {
             ProviderId = Guid.NewGuid(),
@@ -214,7 +276,7 @@ public sealed class AppointmentServiceTests
     [Fact]
     public async Task CreatePublicAppointment_ShouldReturnValidation_WhenDocumentContainsLetters()
     {
-        var service = BuildService();
+        var service = BuildBookingService();
         var request = new PublicAppointmentRequest
         {
             ProviderId = Guid.NewGuid(),
@@ -236,7 +298,7 @@ public sealed class AppointmentServiceTests
     [Fact]
     public async Task CreatePublicAppointment_ShouldReturnMultipleErrors_WhenSeveralFieldsAreInvalid()
     {
-        var service = BuildService();
+        var service = BuildBookingService();
         var request = new PublicAppointmentRequest
         {
             ProviderId = Guid.Empty,               // ← inválido
@@ -260,7 +322,7 @@ public sealed class AppointmentServiceTests
     public async Task CreatePublicAppointment_ShouldReturnNotFound_WhenProviderDoesNotExist()
     {
         var fakeRepo = new FakeAppointmentRepo { ProviderToReturn = null };  // ← proveedor inexistente
-        var service = BuildService(appointmentRepo: fakeRepo);
+        var service = BuildBookingService(appointmentRepo: fakeRepo);
         var request = new PublicAppointmentRequest
         {
             ProviderId = Guid.NewGuid(),
@@ -283,7 +345,7 @@ public sealed class AppointmentServiceTests
     [Fact]
     public async Task CreateInternalAppointment_ShouldReturnValidation_WhenNotesExceedMaxLength()
     {
-        var service = BuildService();
+        var service = BuildBookingService();
         var request = new InternalCreateAppointmentRequest
         {
             ProviderId = Guid.NewGuid(),
@@ -309,7 +371,7 @@ public sealed class AppointmentServiceTests
     public async Task GetAvailability_ShouldReturnNotFound_WhenProviderDoesNotExist()
     {
         var fakeRepo = new FakeAppointmentRepo { ProviderToReturn = null };
-        var service = BuildService(appointmentRepo: fakeRepo);
+        var service = BuildAvailabilityService(appointmentRepo: fakeRepo);
 
         var result = await service.GetAvailabilityAsync(Guid.NewGuid(), DateOnly.FromDateTime(DateTime.Today.AddDays(1)));
 
@@ -322,7 +384,7 @@ public sealed class AppointmentServiceTests
     {
         var provider = new Provider { FirstName = "Dr", LastName = "Test", Specialty = "General" };
         var fakeRepo = new FakeAppointmentRepo { ProviderToReturn = provider };
-        var service = BuildService(appointmentRepo: fakeRepo);
+        var service = BuildAvailabilityService(appointmentRepo: fakeRepo);
 
         var pastDate = DateOnly.FromDateTime(DateTime.Today.AddDays(-1));
         var result = await service.GetAvailabilityAsync(provider.Id, pastDate);
@@ -341,7 +403,7 @@ public sealed class AppointmentServiceTests
             ProviderToReturn = provider,
             Availabilities = Array.Empty<WeeklyAvailability>()  // ← sin horario configurado
         };
-        var service = BuildService(appointmentRepo: fakeRepo);
+        var service = BuildAvailabilityService(appointmentRepo: fakeRepo);
 
         var result = await service.GetAvailabilityAsync(provider.Id, DateOnly.FromDateTime(DateTime.Today.AddDays(1)));
 
@@ -356,7 +418,7 @@ public sealed class AppointmentServiceTests
     [InlineData("   ")]
     public async Task GetAppointmentsByDocument_ShouldReturnEmpty_WhenDocumentIsBlankOrWhitespace(string doc)
     {
-        var service = BuildService();
+        var service = BuildQueryService();
 
         var result = await service.GetAppointmentsByDocumentAsync(doc);
 
@@ -370,7 +432,7 @@ public sealed class AppointmentServiceTests
     [InlineData("   ")]
     public async Task SearchPatients_ShouldReturnEmpty_WhenTermIsBlankOrWhitespace(string term)
     {
-        var service = BuildService();
+        var service = BuildPatientLookupService();
 
         var result = await service.SearchPatientsAsync(term);
 
@@ -383,7 +445,7 @@ public sealed class AppointmentServiceTests
     public async Task CancelPatientAppointment_ShouldReturnNotFound_WhenAppointmentDoesNotExist()
     {
         var fakeRepo = new FakeAppointmentRepo { AppointmentToReturn = null };
-        var service = BuildService(appointmentRepo: fakeRepo);
+        var service = BuildLifecycleService(appointmentRepo: fakeRepo);
 
         var result = await service.CancelPatientAppointmentAsync(Guid.NewGuid(), "usuario-externo");
 
@@ -403,7 +465,7 @@ public sealed class AppointmentServiceTests
             Provider = new Provider { FirstName = "Dr", LastName = "Test", Specialty = "General" }
         };
         var fakeRepo = new FakeAppointmentRepo { AppointmentToReturn = appointment };
-        var service = BuildService(appointmentRepo: fakeRepo);
+        var service = BuildLifecycleService(appointmentRepo: fakeRepo);
 
         var result = await service.CancelPatientAppointmentAsync(appointment.Id, "otro-usuario");
 
@@ -423,7 +485,7 @@ public sealed class AppointmentServiceTests
             Provider = new Provider { FirstName = "Dr", LastName = "Test", Specialty = "General" }
         };
         var fakeRepo = new FakeAppointmentRepo { AppointmentToReturn = appointment };
-        var service = BuildService(appointmentRepo: fakeRepo);
+        var service = BuildLifecycleService(appointmentRepo: fakeRepo);
 
         var result = await service.CancelPatientAppointmentAsync(appointment.Id, "usuario-123");
 
@@ -442,7 +504,7 @@ public sealed class AppointmentServiceTests
             Specialty = "Fisioterapia", DefaultSlotIntervalMinutes = 30
         };
         var fakeRepo = new FakeAppointmentRepo { ProviderToReturn = provider };
-        var service = BuildService(appointmentRepo: fakeRepo);
+        var service = BuildQueryService(appointmentRepo: fakeRepo);
 
         var bytes = await service.ExportAppointmentsCsvAsync(provider.Id, DateOnly.FromDateTime(DateTime.Today));
         var csv = Encoding.UTF8.GetString(bytes);
@@ -459,7 +521,7 @@ public sealed class AppointmentServiceTests
     public async Task ExportCsv_ShouldReturnEmptyBytes_WhenProviderDoesNotExist()
     {
         var fakeRepo = new FakeAppointmentRepo { ProviderToReturn = null };
-        var service = BuildService(appointmentRepo: fakeRepo);
+        var service = BuildQueryService(appointmentRepo: fakeRepo);
 
         var bytes = await service.ExportAppointmentsCsvAsync(Guid.NewGuid(), DateOnly.FromDateTime(DateTime.Today));
 
@@ -471,7 +533,7 @@ public sealed class AppointmentServiceTests
     [Fact]
     public async Task RescheduleAppointment_ShouldReturnValidation_WhenAppointmentIdIsEmpty()
     {
-        var service = BuildService();
+        var service = BuildLifecycleService();
         var request = new RescheduleAppointmentRequest
         {
             AppointmentId = Guid.Empty,            // ← inválido
@@ -488,7 +550,7 @@ public sealed class AppointmentServiceTests
     [Fact]
     public async Task RescheduleAppointment_ShouldReturnValidation_WhenNewDateIsDefault()
     {
-        var service = BuildService();
+        var service = BuildLifecycleService();
         var request = new RescheduleAppointmentRequest
         {
             AppointmentId = Guid.NewGuid(),

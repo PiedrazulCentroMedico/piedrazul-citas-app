@@ -90,7 +90,7 @@ public sealed class AdministrationService(IProviderRepository providerRepository
         var codeBase = string.Concat(PatientInputValidator.Normalize(request.FirstName).Take(3)).ToUpperInvariant();
         var provider = new Provider
         {
-            Code = $"{codeBase}{DateTime.UtcNow:HHmmss}",
+            Code = $"{codeBase}{Guid.NewGuid().ToString("N")[..8].ToUpperInvariant()}",
             FirstName = PatientInputValidator.Normalize(request.FirstName),
             LastName = PatientInputValidator.Normalize(request.LastName),
             Specialty = PatientInputValidator.Normalize(request.Specialty),
@@ -168,7 +168,7 @@ public sealed class AdministrationService(IProviderRepository providerRepository
             await _providers.AddAvailabilitiesAsync(availabilitiesToSave, cancellationToken);
             await _providers.SaveChangesAsync(cancellationToken);
         }
-        catch
+        catch (UniqueConstraintException)
         {
             return OperationResult<ProviderScheduleResponse>.Conflict("No pudimos guardar la disponibilidad. Revisa que las franjas no se solapen y vuelve a intentarlo.");
         }
@@ -246,7 +246,7 @@ public sealed class AdministrationService(IProviderRepository providerRepository
         {
             await _patients.SaveChangesAsync(cancellationToken);
         }
-        catch
+        catch (UniqueConstraintException)
         {
             return OperationResult<PatientLookupResponse>.Conflict("Ya existe otro paciente con esa cédula.");
         }

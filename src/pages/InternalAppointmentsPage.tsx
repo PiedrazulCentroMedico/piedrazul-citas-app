@@ -177,14 +177,25 @@ export function InternalAppointmentsPage() {
     downloadBlob(new Blob([csv], { type: 'text/csv;charset=utf-8;' }), useDateRange ? `citas-${rangeStart}-a-${rangeEnd}.csv` : `citas-${date}.csv`);
   };
 
-  const downloadExcel = () => {
-    if (combinedItems.length === 0) {
-      setMessage('Primero consulta las citas para exportarlas en Excel.');
+  const downloadExcel = async () => {
+    if (!providerId) return;
+    if (useDateRange) {
+      // For ranges: generate client-side HTML XLS (backend endpoint only handles single date)
+      if (combinedItems.length === 0) {
+        setMessage('Primero consulta las citas para exportarlas en Excel.');
+        return;
+      }
+      const label = `${rangeStart} a ${rangeEnd}`;
+      const excel = buildExcelTable(selectedProvider?.fullName ?? 'Profesional', selectedProvider?.specialty ?? '', label, combinedItems);
+      downloadBlob(new Blob([excel], { type: 'application/vnd.ms-excel' }), `citas-${rangeStart}-a-${rangeEnd}.xls`);
       return;
     }
-    const label = useDateRange ? `${rangeStart} a ${rangeEnd}` : date;
-    const excel = buildExcelTable(selectedProvider?.fullName ?? 'Profesional', selectedProvider?.specialty ?? '', label, combinedItems);
-    downloadBlob(new Blob([excel], { type: 'application/vnd.ms-excel' }), useDateRange ? `citas-${rangeStart}-a-${rangeEnd}.xls` : `citas-${date}.xls`);
+    try {
+      const blob = await apiRequest<Blob>(`/api/internal/appointments/export/xlsx?providerId=${providerId}&date=${date}`, session, { method: 'GET', responseType: 'blob' });
+      downloadBlob(blob, `citas-${date}.xlsx`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'No fue posible descargar el Excel.');
+    }
   };
 
   const updateAppointmentStatus = async (appointmentId: string) => {

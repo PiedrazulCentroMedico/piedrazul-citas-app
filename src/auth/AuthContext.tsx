@@ -1,6 +1,7 @@
 import Keycloak from 'keycloak-js';
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
+import { apiRequest } from '../api/http';
 import { appConfig } from '../config';
 import type { DemoRole, SessionUser } from '../types';
 import { hashPassword, verifyPassword } from '../utils/passwordHash';
@@ -385,7 +386,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     },
     async createInternalDemoAccount(payload) {
       if (appConfig.authMode === 'keycloak') {
-        throw new Error('La creación de cuentas internas debe hacerse desde el gestor central de usuarios.');
+        const currentSession = internalSession;
+        if (!currentSession) throw new Error('Sesión no disponible.');
+        await apiRequest<{ id: string }>('/api/admin/internal-users', currentSession, {
+          method: 'POST',
+          body: {
+            username: payload.email.trim().toLowerCase(),
+            email: payload.email.trim().toLowerCase(),
+            firstName: payload.displayName.split(' ')[0] ?? payload.displayName,
+            lastName: payload.displayName.split(' ').slice(1).join(' ') || payload.displayName,
+            password: payload.password,
+            roles: payload.roles,
+          },
+        });
+        return;
       }
 
       const normalizedEmail = payload.email.trim().toLowerCase();
@@ -417,7 +431,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw new Error('No encontramos una cuenta asociada al dato ingresado.');
       }
 
-      const code = String(Math.floor(100000 + Math.random() * 900000));
+      const buf = new Uint32Array(1);
+      crypto.getRandomValues(buf);
+      const code = String(100000 + (buf[0] % 900000));
       const requests = readResetRequests().filter((item) => item.identifier !== normalizedIdentifier);
       requests.push({ identifier: normalizedIdentifier, code, expiresAt: Date.now() + 15 * 60 * 1000 });
       saveResetRequests(requests);

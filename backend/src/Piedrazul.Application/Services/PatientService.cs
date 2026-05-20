@@ -53,7 +53,7 @@ public sealed class PatientService(IPatientRepository patientRepository, IAppoin
         {
             await _patients.SaveChangesAsync(cancellationToken);
         }
-        catch
+        catch (UniqueConstraintException)
         {
             return OperationResult<PatientProfileResponse>.Conflict("Ya existe otro paciente con ese documento o usuario vinculado.");
         }

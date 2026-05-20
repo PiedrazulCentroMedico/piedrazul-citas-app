@@ -103,6 +103,7 @@ export function PublicBookingPage() {
   }, [form.providerId, form.appointmentDate]);
 
   const selectedProvider = useMemo(() => providers.find((provider) => provider.id === form.providerId), [providers, form.providerId]);
+  const mustCreateAccount = false;
 
   const visibleSlots = useMemo(() => {
     if (!form.appointmentDate) return slots;

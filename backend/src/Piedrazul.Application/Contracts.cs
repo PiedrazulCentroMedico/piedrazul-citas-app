@@ -207,22 +207,39 @@ public sealed record PatientPublicLookupResponse(
     string? MaskedEmail,
     int? BirthYear);
 
-public interface IAppointmentService
+public interface IAvailabilityService
 {
     Task<IReadOnlyList<ProviderSummaryResponse>> GetActiveProvidersAsync(CancellationToken cancellationToken = default);
     Task<OperationResult<IReadOnlyList<AvailabilitySlotResponse>>> GetAvailabilityAsync(Guid providerId, DateOnly date, CancellationToken cancellationToken = default);
+}
+
+public interface IAppointmentBookingService
+{
     Task<OperationResult<AppointmentResponse>> CreatePublicAppointmentAsync(PublicAppointmentRequest request, string? externalUserId, string createdBy, CancellationToken cancellationToken = default);
     Task<OperationResult<AppointmentResponse>> CreateInternalAppointmentAsync(InternalCreateAppointmentRequest request, string createdBy, CancellationToken cancellationToken = default);
+}
+
+public interface IAppointmentQueryService
+{
     Task<OperationResult<AppointmentListResponse>> GetAppointmentsByProviderAndDateAsync(Guid providerId, DateOnly date, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<AppointmentHistoryResponse>> GetAppointmentHistoryAsync(Guid appointmentId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<AppointmentResponse>> GetAppointmentsByDocumentAsync(string documentNumber, CancellationToken cancellationToken = default);
     Task<byte[]> ExportAppointmentsPdfAsync(Guid providerId, DateOnly date, CancellationToken cancellationToken = default);
     Task<byte[]> ExportAppointmentsCsvAsync(Guid providerId, DateOnly date, CancellationToken cancellationToken = default);
-    Task<IReadOnlyList<AppointmentHistoryResponse>> GetAppointmentHistoryAsync(Guid appointmentId, CancellationToken cancellationToken = default);
+    Task<byte[]> ExportAppointmentsXlsxAsync(Guid providerId, DateOnly date, CancellationToken cancellationToken = default);
+}
+
+public interface IAppointmentLifecycleService
+{
     Task<OperationResult<AppointmentResponse>> UpdateAppointmentStatusAsync(Guid appointmentId, string status, CancellationToken cancellationToken = default);
     Task<OperationResult<AppointmentResponse>> CancelPatientAppointmentAsync(Guid appointmentId, string externalUserId, CancellationToken cancellationToken = default);
     Task<OperationResult<AppointmentResponse>> RescheduleAppointmentAsync(RescheduleAppointmentRequest request, string changedBy, CancellationToken cancellationToken = default);
+}
+
+public interface IPatientLookupService
+{
     Task<IReadOnlyList<PatientLookupResponse>> SearchPatientsAsync(string documentTerm, CancellationToken cancellationToken = default);
     Task<PatientLookupResponse?> GetPatientByDocumentAsync(string documentNumber, CancellationToken cancellationToken = default);
-    Task<IReadOnlyList<AppointmentResponse>> GetAppointmentsByDocumentAsync(string documentNumber, CancellationToken cancellationToken = default);
 }
 
 public interface IPatientService

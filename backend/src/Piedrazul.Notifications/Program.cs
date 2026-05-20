@@ -1,4 +1,5 @@
 using Piedrazul.Notifications.Consumers;
+using Piedrazul.Notifications.Notifications;
 using RabbitMQ.Client;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -12,10 +13,17 @@ if (!string.IsNullOrWhiteSpace(rabbitMqConnectionString))
     builder.Services.AddSingleton<IConnection>(_ =>
     {
         var factory = new ConnectionFactory { Uri = new Uri(rabbitMqConnectionString) };
-        return factory.CreateConnectionAsync().GetAwaiter().GetResult();
+        return Task.Run(() => factory.CreateConnectionAsync()).GetAwaiter().GetResult();
     });
     builder.Services.AddHostedService<AppointmentNotificationConsumer>();
 }
+
+// Register notification sender
+var smtpHost = builder.Configuration["Smtp:Host"];
+if (!string.IsNullOrWhiteSpace(smtpHost))
+    builder.Services.AddSingleton<INotificationSender, SmtpNotificationSender>();
+else
+    builder.Services.AddSingleton<INotificationSender, NullNotificationSender>();
 
 var app = builder.Build();
 
@@ -25,17 +33,15 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.MapPost("/notifications/appointment", (AppointmentNotification notification, ILoggerFactory loggerFactory) =>
+app.MapPost("/notifications/appointment", (AppointmentNotification notification, INotificationSender sender) =>
 {
-    var logger = loggerFactory.CreateLogger("Notifications");
-    logger.LogInformation("Appointment created {@Notification}", notification);
+    _ = sender.SendAppointmentCreatedAsync(notification.Id, notification.AppointmentDate, notification.StartTime, notification.PatientProfileId, notification.ProviderId);
     return Results.Accepted();
 });
 
-app.MapPost("/notifications/appointment/status", (AppointmentStatusNotification notification, ILoggerFactory loggerFactory) =>
+app.MapPost("/notifications/appointment/status", (AppointmentStatusNotification notification, INotificationSender sender) =>
 {
-    var logger = loggerFactory.CreateLogger("Notifications");
-    logger.LogInformation("Appointment status changed {@Notification}", notification);
+    _ = sender.SendAppointmentStatusChangedAsync(notification.Id, notification.Status, notification.AppointmentDate, notification.StartTime, notification.PatientProfileId);
     return Results.Accepted();
 });
 

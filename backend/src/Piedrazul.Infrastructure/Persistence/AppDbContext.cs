@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Piedrazul.Application;
 using Piedrazul.Domain;
 
 namespace Piedrazul.Infrastructure.Persistence;
@@ -92,7 +93,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         base.OnModelCreating(modelBuilder);
     }
 
-    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         var changedEntries = ChangeTracker
             .Entries<AuditableEntity>()
@@ -101,13 +102,21 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         foreach (var entry in changedEntries)
         {
             if (entry.State == EntityState.Added)
-            {
                 entry.Entity.CreatedAtUtc = DateTime.UtcNow;
-            }
 
             entry.Entity.UpdatedAtUtc = DateTime.UtcNow;
         }
 
-        return base.SaveChangesAsync(cancellationToken);
+        try
+        {
+            return await base.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex)
+            when (ex.InnerException is Npgsql.PostgresException pg && pg.SqlState == "23505")
+        {
+            // Código SQLSTATE 23505 = unique_violation en PostgreSQL.
+            // Se relanza como excepción de dominio para que Application no dependa de EF Core ni Npgsql.
+            throw new UniqueConstraintException();
+        }
     }
 }

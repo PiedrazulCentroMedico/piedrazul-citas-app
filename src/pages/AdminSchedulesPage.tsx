@@ -387,7 +387,7 @@ export function AdminSchedulesPage() {
                   </label>
                   <label>
                     Intervalo
-                    <input type="number" min={5} max={120} value={availability.slotIntervalMinutes} onChange={(event) => updateAvailability(index, 'slotIntervalMinutes', Number(event.target.value))} />
+                    <input type="number" min={10} max={120} value={availability.slotIntervalMinutes} onChange={(event) => updateAvailability(index, 'slotIntervalMinutes', Number(event.target.value))} />
                   </label>
                   <label className="checkbox-field">
                     <input type="checkbox" checked={availability.isActive} onChange={(event) => updateAvailability(index, 'isActive', event.target.checked)} />

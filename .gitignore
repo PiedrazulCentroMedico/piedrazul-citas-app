@@ -11,6 +11,8 @@ dist
 
 # env
 .env
+appsettings.Production.json
+appsettings.Staging.json
 
 # IDE
 .idea/

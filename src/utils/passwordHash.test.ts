@@ -1,5 +1,36 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { hashPassword, verifyPassword } from './passwordHash';
+
+describe('generateSecureOtp (crypto.getRandomValues)', () => {
+  function generateOtp(): string {
+    const buf = new Uint32Array(1);
+    crypto.getRandomValues(buf);
+    return String(100000 + (buf[0] % 900000));
+  }
+
+  it('genera un código de exactamente 6 dígitos', () => {
+    const code = generateOtp();
+    expect(code).toMatch(/^\d{6}$/);
+  });
+
+  it('el código está en el rango [100000, 999999]', () => {
+    const code = parseInt(generateOtp(), 10);
+    expect(code).toBeGreaterThanOrEqual(100000);
+    expect(code).toBeLessThanOrEqual(999999);
+  });
+
+  it('genera códigos distintos en llamadas sucesivas (probabilidad extremadamente alta)', () => {
+    const codes = new Set(Array.from({ length: 20 }, generateOtp));
+    expect(codes.size).toBeGreaterThan(1);
+  });
+
+  it('usa crypto.getRandomValues en lugar de Math.random', () => {
+    const spy = vi.spyOn(crypto, 'getRandomValues');
+    generateOtp();
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
+  });
+});
 
 describe('hashPassword', () => {
   it('devuelve cadena con formato <saltHex>:<hashHex>', async () => {

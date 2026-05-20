@@ -9,7 +9,7 @@ import { sanitizeNameInput } from '../utils/validators';
 
 
 export function AdminUsersPage() {
-  const { session } = useAuth();
+  const { session, authMode } = useAuth();
   const [term, setTerm] = useState('');
   const [internalUsers, setInternalUsers] = useState<InternalDirectoryAccount[]>([]);
   const [patients, setPatients] = useState<PatientLookup[]>([]);
@@ -28,8 +28,21 @@ export function AdminUsersPage() {
   ], []);
 
   useEffect(() => {
-    setInternalUsers(readInternalDirectory());
-  }, []);
+    if (authMode === 'keycloak') {
+      if (!session) return;
+      apiRequest<{ id: string; username: string; email?: string; firstName?: string; lastName?: string; enabled: boolean }[]>('/api/admin/internal-users', session)
+        .then((users) => setInternalUsers(users.map((u) => ({
+          displayName: [u.firstName, u.lastName].filter(Boolean).join(' ') || u.username,
+          email: u.email,
+          subject: u.id,
+          roles: [],
+          password: '',
+        }))))
+        .catch(() => undefined);
+    } else {
+      setInternalUsers(readInternalDirectory());
+    }
+  }, [authMode, session]);
 
   useEffect(() => {
     if (!session) return;
@@ -95,6 +108,12 @@ export function AdminUsersPage() {
 
     const providerId = getLinkedProviderId(account.email);
     try {
+      if (authMode === 'keycloak') {
+        await apiRequest(`/api/admin/internal-users/${account.subject}`, session, { method: 'DELETE' });
+        setInternalUsers((current) => current.filter((item) => item.subject !== account.subject));
+        setMessage('El profesional fue eliminado correctamente.');
+        return;
+      }
       if (providerId) {
         await apiRequest(`/api/admin/provider-schedules/${providerId}`, session, { method: 'DELETE' });
       }

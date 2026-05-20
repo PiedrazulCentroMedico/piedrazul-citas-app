@@ -11,9 +11,10 @@ public abstract class ApiControllerBase : ControllerBase
         var payload = new { errors = result.Errors };
         return result.Status switch
         {
-            OperationStatus.NotFound => NotFound(payload),
-            OperationStatus.Conflict => Conflict(payload),
-            _ => BadRequest(payload)
+            OperationStatus.NotFound       => NotFound(payload),
+            OperationStatus.Conflict       => Conflict(payload),
+            OperationStatus.ValidationError => UnprocessableEntity(payload),
+            _                              => BadRequest(payload)
         };
     }
 }
