@@ -274,41 +274,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const session = isInternalRoute ? internalSession : patientSession;
 
-  const findAccount = (normalizedIdentifier: string, portal: string) =>
-    readAccounts().find((item) => {
-      const isPatientAccount = item.roles.includes('Patient');
-      if (portal === 'patient') {
-        return isPatientAccount && item.documentNumber === normalizedIdentifier;
-      }
-      return !isPatientAccount && (item.email ?? '').toLowerCase() === normalizedIdentifier;
-    });
-
-  const getInvalidCredentialsMessage = (portal: string) =>
-    portal === 'patient'
-      ? 'Cédula o contraseña incorrectas. Verifica tus datos e inténtalo de nuevo.'
-      : 'Correo o contraseña incorrectos. Verifica tus credenciales e inténtalo de nuevo.';
-
-  const validatePortalMatch = (account: DemoAccount, portal: string) => {
-    const isPatientAccount = account.roles.includes('Patient');
-    if (portal === 'patient' && !isPatientAccount) {
-      throw new Error('Estas credenciales pertenecen al portal interno. Usa el acceso para personal autorizado.');
-    }
-    if (portal === 'internal' && isPatientAccount) {
-      throw new Error('Estas credenciales pertenecen al portal de pacientes. Usa iniciar sesión desde el portal público.');
-    }
-  };
-
-  const saveSessionByRole = (account: DemoAccount, newSession: SessionUser) => {
-    const isPatientAccount = account.roles.includes('Patient');
-    if (isPatientAccount) {
-      saveStoredSession(PATIENT_SESSION_STORAGE_KEY, newSession);
-      setPatientSession(newSession);
-    } else {
-      saveStoredSession(INTERNAL_SESSION_STORAGE_KEY, newSession);
-      setInternalSession(newSession);
-    }
-  };
-
   const value = useMemo<AuthContextValue>(() => ({
     ready,
     session,
@@ -361,17 +326,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       const normalizedIdentifier = identifier.trim().toLowerCase();
-      const account = findAccount(normalizedIdentifier, portal);
-      const passwordMatch = account ? await verifyPassword(password, account.password) : false;
+      const account = readAccounts().find((item) => {
+        const isPatientAccount = item.roles.includes('Patient');
+        if (portal === 'patient') {
+          return isPatientAccount && item.documentNumber === normalizedIdentifier;
+        }
+        return !isPatientAccount && (item.email ?? '').toLowerCase() === normalizedIdentifier;
+      });
 
+      const passwordMatch = account ? await verifyPassword(password, account.password) : false;
       if (!account || !passwordMatch) {
-        throw new Error(getInvalidCredentialsMessage(portal));
+        throw new Error(portal === 'patient'
+          ? 'Cédula o contraseña incorrectas. Verifica tus datos e inténtalo de nuevo.'
+          : 'Correo o contraseña incorrectos. Verifica tus credenciales e inténtalo de nuevo.');
       }
 
-      validatePortalMatch(account, portal);
+      const isPatientAccount = account.roles.includes('Patient');
+      if (portal === 'patient' && !isPatientAccount) {
+        throw new Error('Estas credenciales pertenecen al portal interno. Usa el acceso para personal autorizado.');
+      }
+
+      if (portal === 'internal' && isPatientAccount) {
+        throw new Error('Estas credenciales pertenecen al portal de pacientes. Usa iniciar sesión desde el portal público.');
+      }
 
       const newSession = createSession(account);
-      saveSessionByRole(account, newSession);
+      if (isPatientAccount) {
+        saveStoredSession(PATIENT_SESSION_STORAGE_KEY, newSession);
+        setPatientSession(newSession);
+      } else {
+        saveStoredSession(INTERNAL_SESSION_STORAGE_KEY, newSession);
+        setInternalSession(newSession);
+      }
+
       return newSession;
     },
     async registerPatientAccount(payload) {
