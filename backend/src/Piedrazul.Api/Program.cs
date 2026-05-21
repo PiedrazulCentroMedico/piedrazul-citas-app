@@ -89,9 +89,10 @@ if (string.Equals(authenticationMode, "Keycloak", StringComparison.OrdinalIgnore
         {
             options.Authority = builder.Configuration["Authentication:Authority"];
             options.RequireHttpsMetadata = builder.Configuration.GetValue("Authentication:RequireHttpsMetadata", false);
+            var validateAudience = builder.Configuration.GetValue("Authentication:ValidateAudience", true);
             options.TokenValidationParameters = new TokenValidationParameters
             {
-                ValidateAudience = true,
+                ValidateAudience = validateAudience,
                 ValidAudience = builder.Configuration["Authentication:Audience"],
                 NameClaimType = ClaimTypes.Name,
                 RoleClaimType = ClaimTypes.Role
