@@ -50,6 +50,9 @@ public sealed class AppointmentServiceTests
         public Task<int> CountScheduledAppointmentsByPatientIdAsync(Guid id, CancellationToken ct = default) =>
             Task.FromResult(0);
 
+        public Task<Dictionary<Guid, int>> CountScheduledByPatientIdsAsync(IReadOnlyList<Guid> patientIds, CancellationToken ct = default) =>
+            Task.FromResult(patientIds.ToDictionary(id => id, _ => 0));
+
         public Task AddAppointmentAsync(Appointment appointment, CancellationToken ct = default) =>
             Task.CompletedTask;
 
