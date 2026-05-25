@@ -205,7 +205,10 @@ public sealed record PatientPublicLookupResponse(
     Gender? Gender,
     string? MaskedPhone,
     string? MaskedEmail,
-    int? BirthYear);
+    int? BirthYear,
+    bool MustRegister,
+    DateOnly? LastGuestAppointmentDate,
+    string? LastGuestAppointmentType);
 
 public interface IAvailabilityService
 {

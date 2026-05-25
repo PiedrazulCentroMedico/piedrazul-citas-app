@@ -6,6 +6,7 @@ export type DemoRole = 'patient' | 'admin' | 'scheduler' | 'doctor';
 export type GenderOption = Gender | '';
 export type AppointmentStatusValue = 'Programada' | 'Cancelada' | 'Completada' | 'No asistió';
 
+
 export interface SessionUser {
   subject: string;
   displayName: string;
@@ -124,6 +125,9 @@ export interface PatientPublicLookup {
   maskedPhone?: string;
   maskedEmail?: string;
   birthYear?: number;
+  mustRegister: boolean;
+  lastGuestAppointmentDate?: string | null;
+  lastGuestAppointmentType?: string | null;
 }
 
 export interface SystemSettings {

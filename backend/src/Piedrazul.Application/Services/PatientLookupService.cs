@@ -38,21 +38,34 @@ public sealed class PatientLookupService(
     {
         var normalized = PatientInputValidator.Normalize(documentNumber);
         if (string.IsNullOrWhiteSpace(normalized))
-            return new PatientPublicLookupResponse(false, null, null, null, null, null, null, null);
+            return new PatientPublicLookupResponse(false, null, null, null, null, null, null, null, false, null, null);
 
         var profile = await _patients.GetByDocumentAsync(normalized, cancellationToken);
         if (profile is null)
-            return new PatientPublicLookupResponse(false, null, null, null, null, null, null, null);
+            return new PatientPublicLookupResponse(false, null, null, null, null, null, null, null, false, null, null);
 
-        return new PatientPublicLookupResponse(
-            Exists: true,
-            Id: profile.Id,
-            FirstName: profile.FirstName,
-            LastName: profile.LastName,
-            Gender: profile.Gender,
-            MaskedPhone: PiiMasking.MaskPhone(profile.Phone),
-            MaskedEmail: PiiMasking.MaskEmail(profile.Email),
-            BirthYear: profile.BirthDate?.Year);
+        var appointments = await _appointments.GetAppointmentsByDocumentAsync(normalized, cancellationToken);
+
+var lastGuestAppointment = appointments
+    .Where(x => x.PatientProfile != null && x.PatientProfile.IsGuest)
+    .OrderByDescending(x => x.AppointmentDate)
+    .ThenByDescending(x => x.StartTime)
+    .FirstOrDefault();
+
+var mustRegister = string.IsNullOrWhiteSpace(profile.ExternalUserId) && lastGuestAppointment is not null;
+
+return new PatientPublicLookupResponse(
+    Exists: true,
+    Id: profile.Id,
+    FirstName: profile.FirstName,
+    LastName: profile.LastName,
+    Gender: profile.Gender,
+    MaskedPhone: PiiMasking.MaskPhone(profile.Phone),
+    MaskedEmail: PiiMasking.MaskEmail(profile.Email),
+    BirthYear: profile.BirthDate?.Year,
+    MustRegister: mustRegister,
+    LastGuestAppointmentDate: lastGuestAppointment?.AppointmentDate,
+    LastGuestAppointmentType: lastGuestAppointment?.Provider.Specialty);
     }
 
     private async Task<IReadOnlyList<PatientLookupResponse>> MapToLookupResponsesAsync(

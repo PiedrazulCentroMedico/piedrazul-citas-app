@@ -93,7 +93,17 @@ Swagger:
 http://localhost:5184/swagger
 ```
 
+
+o
+```text
+cd backend
+dotnet restore
+dotnet run --project src/Piedrazul.Api/Piedrazul.Api.csproj
+```
+
+
 ## Paso 3. Configura el frontend
+
 
 En la raíz del proyecto crea un archivo `.env.local` con este contenido:
 

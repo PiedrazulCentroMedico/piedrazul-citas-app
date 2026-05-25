@@ -50,6 +50,7 @@ export function PublicBookingPage() {
   const [lookupLoading, setLookupLoading] = useState(false);
   const [documentVerified, setDocumentVerified] = useState(false);
   const [patientLookup, setPatientLookup] = useState<PatientPublicLookup | null>(null);
+  const [guestLimitModal, setGuestLimitModal] = useState<PatientPublicLookup | null>(null);
   const [captcha, setCaptcha] = useState<CaptchaChallenge>(createCaptchaChallenge);
 
   useEffect(() => {
@@ -157,6 +158,10 @@ export function PublicBookingPage() {
       const lookup = await apiRequest<PatientPublicLookup>(`/api/public/patients/lookup?document=${documentNumber}`, null);
       setDocumentVerified(true);
       setPatientLookup(lookup.exists ? lookup : null);
+
+      if (lookup.mustRegister) {
+        setGuestLimitModal(lookup);
+      } 
 
       if (lookup.exists) {
         setForm((current) => ({
@@ -420,27 +425,83 @@ export function PublicBookingPage() {
       </form>
 
       {success && (
-        <div className="modal-backdrop" role="dialog" aria-modal="true">
-          <section className="modal-card stack-md">
-            <span className="eyebrow">Reserva confirmada</span>
-            <h2>Tu cita fue registrada correctamente</h2>
-            <div className="summary-grid">
-              <div><span>Paciente</span><strong>{success.patientFullName}</strong></div>
-              <div><span>Profesional</span><strong>{success.providerName}</strong></div>
-              <div><span>Especialidad</span><strong>{success.specialty}</strong></div>
-              <div><span>Fecha y hora</span><strong>{formatDateLabel(success.appointmentDate)} · {success.startTime}</strong></div>
+      <div className="modal-backdrop" role="dialog" aria-modal="true">
+        <section className="modal-card stack-md">
+          <span className="eyebrow">Reserva confirmada</span>
+          <h2>Tu cita fue registrada correctamente</h2>
+
+          <div className="summary-grid">
+            <div><span>Paciente</span><strong>{success.patientFullName}</strong></div>
+            <div><span>Profesional</span><strong>{success.providerName}</strong></div>
+            <div><span>Especialidad</span><strong>{success.specialty}</strong></div>
+            <div><span>Fecha y hora</span><strong>{formatDateLabel(success.appointmentDate)} · {success.startTime}</strong></div>
+          </div>
+
+          {!isPatientSession && (
+            <div className="notice-card">
+              <strong>Importante</strong>
+              <p className="muted-text">
+                Solo puedes reservar una cita como invitado. Para una próxima reserva deberás registrarte.
+                Guarda bien la información de esta cita, ya que por seguridad no se mostrará información sensible para recordarla después.
+              </p>
             </div>
-            <div className="inline-actions end wrap">
-              <button type="button" className="button" onClick={() => {
+          )}
+
+          <div className="inline-actions end wrap">
+            <button type="button" className="button" onClick={() => {
+              setSuccess(null);
+              navigate(isPatientSession ? '/portal/paciente' : '/consultar-citas', { replace: true });
+            }}>
+              <button
+              type="button"
+              className="button"
+              onClick={() => {
                 setSuccess(null);
-                navigate(isPatientSession ? '/portal/paciente' : '/consultar-citas', { replace: true });
-              }}>
-                {isPatientSession ? 'Ir a mis citas' : 'Consultar mis citas'}
-              </button>
+                navigate('/', { replace: true });
+              }}
+            >
+              Ir al inicio
+            </button>
+            </button>
+          </div>
+        </section>
+      </div>
+    )}
+
+    {guestLimitModal && (
+      <div className="modal-backdrop" role="dialog" aria-modal="true">
+        <section className="modal-card stack-md">
+          <span className="eyebrow">Registro requerido</span>
+          <h2>Ya usaste tu cita como invitado</h2>
+
+          <p className="muted-text">
+            Para reservar otra cita debes crear una cuenta. Por seguridad solo mostramos fecha y tipo de cita.
+          </p>
+
+          <div className="summary-grid">
+            <div>
+              <span>Fecha</span>
+              <strong>{guestLimitModal.lastGuestAppointmentDate ?? 'No disponible'}</strong>
             </div>
-          </section>
-        </div>
-      )}
+
+            <div>
+              <span>Tipo de cita</span>
+              <strong>{guestLimitModal.lastGuestAppointmentType ?? 'No disponible'}</strong>
+            </div>
+          </div>
+
+          <div className="inline-actions end wrap">
+            <button type="button" className="button" onClick={() => navigate('/crear-cuenta')}>
+              Registrar usuario
+            </button>
+
+            <button type="button" className="button button-secondary" onClick={() => setGuestLimitModal(null)}>
+              Salir
+            </button>
+          </div>
+        </section>
+      </div>
+    )}
     </div>
   );
 }

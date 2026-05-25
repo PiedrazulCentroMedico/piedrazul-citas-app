@@ -90,8 +90,8 @@ public sealed class AppointmentBookingService(
         if (isGuest && string.IsNullOrWhiteSpace(externalUserId) && patient is not null)
         {
             var guestReservationCount = await _appointments.CountScheduledAppointmentsByPatientIdAsync(patient.Id, cancellationToken);
-            if (guestReservationCount >= 3 && string.IsNullOrWhiteSpace(patient.ExternalUserId))
-                return OperationResult<AppointmentResponse>.Validation("Ya alcanzaste 3 reservas como invitado. Debes crear un usuario para continuar reservando.");
+            if (guestReservationCount >= 1 && string.IsNullOrWhiteSpace(patient.ExternalUserId))
+                return OperationResult<AppointmentResponse>.Validation("Ya tienes una cita registrada como invitado. Para reservar otra cita debes crear una cuenta.");
         }
 
         if (patient is null)
