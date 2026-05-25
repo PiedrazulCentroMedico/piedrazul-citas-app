@@ -6,6 +6,7 @@ public sealed class AuthenticationOptions
     public string Authority { get; set; } = "http://localhost:8080/realms/piedrazul";
     public string Audience { get; set; } = "piedrazul-api";
     public bool RequireHttpsMetadata { get; set; }
+    public bool ValidateAudience { get; set; } = true;
 }
 
 public sealed class FrontendOptions

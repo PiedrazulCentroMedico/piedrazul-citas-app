@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiRequest } from '../api/http';
 import { useAuth } from '../auth/AuthContext';
 import { PortalTabs } from '../components/PortalTabs';
 import type { AppointmentResponse, AvailabilitySlot, Gender, GenderOption, InternalAppointmentPayload, PatientLookup, ProviderSummary } from '../types';
-import { formatDateLabel, sanitizeNameInput, validatePatientForm } from '../utils/validators';
+import { formatDateLabel, hasSettingsAccess, isDoctorRole, sanitizeNameInput, validatePatientForm } from '../utils/validators';
 
 const initialForm = {
   providerId: '',
@@ -21,15 +21,19 @@ const initialForm = {
   channel: 'WhatsApp',
 };
 
-const tabs = [
-  { to: '/portal/interno/citas', label: 'Listado de citas' },
-  { to: '/portal/interno/nueva-cita', label: 'Nueva cita' },
-  { to: '/portal/interno/usuarios', label: 'Usuarios' },
-];
-
 export function InternalNewAppointmentPage() {
   const navigate = useNavigate();
   const { session } = useAuth();
+  const isDoctor = isDoctorRole(session?.roles ?? []);
+  const canManageUsers = session?.roles.includes('Admin') ?? false;
+  const tabs = useMemo(() => {
+    const base = [{ to: '/portal/interno/citas', label: isDoctor ? 'Mis citas' : 'Listado de citas' }];
+    if (!isDoctor) base.push({ to: '/portal/interno/nueva-cita', label: 'Nueva cita' });
+    if (canManageUsers) base.push({ to: '/portal/interno/usuarios', label: 'Usuarios' });
+    if (hasSettingsAccess(session?.roles ?? [])) base.push({ to: '/portal/interno/configuracion', label: 'Configuración' });
+    if (isDoctor) base.push({ to: '/portal/interno/perfil', label: 'Mi perfil' });
+    return base;
+  }, [canManageUsers, isDoctor, session?.roles]);
   const [providers, setProviders] = useState<ProviderSummary[]>([]);
   const [form, setForm] = useState(initialForm);
   const [slots, setSlots] = useState<AvailabilitySlot[]>([]);

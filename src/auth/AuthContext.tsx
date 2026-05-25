@@ -1,5 +1,5 @@
 import Keycloak from 'keycloak-js';
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { apiRequest } from '../api/http';
 import { appConfig } from '../config';
@@ -52,7 +52,7 @@ interface AuthContextValue {
   loginWithCredentials: (identifier: string, password: string, portal: 'patient' | 'internal') => Promise<SessionUser>;
   registerPatientAccount: (payload: RegisterPayload) => Promise<SessionUser>;
   createInternalDemoAccount: (payload: InternalAccountPayload) => Promise<void>;
-  requestPasswordReset: (identifier: string) => Promise<string>;
+  requestPasswordReset: (identifier: string) => Promise<string | null>;
   resetPassword: (identifier: string, code: string, newPassword: string) => Promise<void>;
 }
 
@@ -216,8 +216,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [patientSession, setPatientSession] = useState<SessionUser | null>(null);
   const [internalSession, setInternalSession] = useState<SessionUser | null>(null);
   const [keycloak, setKeycloak] = useState<Keycloak | null>(null);
+  const keycloakInitialized = useRef(false);
 
   useEffect(() => {
+    if (keycloakInitialized.current) return;
+    keycloakInitialized.current = true;
+
     if (appConfig.authMode === 'keycloak') {
       const keycloakInstance = new Keycloak({
         url: appConfig.keycloakUrl,
@@ -227,7 +231,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       keycloakInstance
         .init({
-          onLoad: 'check-sso',
+          onLoad: 'login-required',
           pkceMethod: 'S256',
           checkLoginIframe: false,
         })
@@ -437,7 +441,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const requests = readResetRequests().filter((item) => item.identifier !== normalizedIdentifier);
       requests.push({ identifier: normalizedIdentifier, code, expiresAt: Date.now() + 15 * 60 * 1000 });
       saveResetRequests(requests);
-      return code;
+      return appConfig.authMode === 'demo' ? code : null;
     },
     async resetPassword(identifier, code, newPassword) {
       const normalizedIdentifier = identifier.trim().toLowerCase();
