@@ -19,14 +19,6 @@ public sealed class AppointmentLifecycleService(
     private readonly IAuditLogger _audit = auditLogger;
     private readonly INotificationClient _notifications = notificationClient;
 
-    // Las citas se almacenan en hora Colombia (UTC-5). Siempre comparar con UtcNow
-    // convirtiendo la hora local de la cita a UTC antes de la comparación.
-    private static readonly TimeZoneInfo ColombiaZone =
-        TimeZoneInfo.FindSystemTimeZoneById("America/Bogota");
-
-    private static DateTime ToAppointmentUtc(DateOnly date, TimeOnly time) =>
-        TimeZoneInfo.ConvertTimeToUtc(date.ToDateTime(time), ColombiaZone);
-
     public async Task<OperationResult<AppointmentResponse>> CancelPatientAppointmentAsync(Guid appointmentId, string externalUserId, CancellationToken cancellationToken = default)
     {
         var appointment = await _appointments.GetAppointmentByIdAsync(appointmentId, cancellationToken);
@@ -39,7 +31,8 @@ public sealed class AppointmentLifecycleService(
         if (appointment.Status != AppointmentStatus.Scheduled)
             return OperationResult<AppointmentResponse>.Validation("Solo puedes cancelar citas que sigan programadas.");
 
-        if (DateTime.UtcNow >= ToAppointmentUtc(appointment.AppointmentDate, appointment.StartTime))
+        var tz = await GetTimeZoneAsync(cancellationToken);
+        if (DateTime.UtcNow >= ToAppointmentUtc(appointment.AppointmentDate, appointment.StartTime, tz))
             return OperationResult<AppointmentResponse>.Validation("Solo puedes cancelar citas antes de la hora de atención.");
 
         appointment.Status = AppointmentStatus.Cancelled;
@@ -47,7 +40,7 @@ public sealed class AppointmentLifecycleService(
 
         await _audit.LogAsync("appointment.cancelled", new { appointment.Id, appointment.AppointmentDate, appointment.StartTime }, cancellationToken);
         await _notifications.NotifyAppointmentStatusChangedAsync(appointment, cancellationToken);
-        await _cache.RemoveAsync($"availability:{appointment.ProviderId}:{appointment.AppointmentDate:yyyyMMdd}", cancellationToken);
+        await _cache.RemoveAsync(CacheKeys.AvailabilitySlots(appointment.ProviderId, appointment.AppointmentDate), cancellationToken);
 
         return OperationResult<AppointmentResponse>.Success(AppointmentMapper.ToResponse(appointment));
     }
@@ -130,8 +123,8 @@ public sealed class AppointmentLifecycleService(
             history.ChangedBy
         }, cancellationToken);
 
-        await _cache.RemoveAsync($"availability:{appointment.ProviderId}:{previousDate:yyyyMMdd}", cancellationToken);
-        await _cache.RemoveAsync($"availability:{appointment.ProviderId}:{appointment.AppointmentDate:yyyyMMdd}", cancellationToken);
+        await _cache.RemoveAsync(CacheKeys.AvailabilitySlots(appointment.ProviderId, previousDate), cancellationToken);
+        await _cache.RemoveAsync(CacheKeys.AvailabilitySlots(appointment.ProviderId, appointment.AppointmentDate), cancellationToken);
         await _notifications.NotifyAppointmentStatusChangedAsync(appointment, cancellationToken);
 
         return OperationResult<AppointmentResponse>.Success(AppointmentMapper.ToResponse(appointment));
@@ -146,7 +139,8 @@ public sealed class AppointmentLifecycleService(
         if (!TryParseStatus(status, out var parsedStatus))
             return OperationResult<AppointmentResponse>.Validation("El estado enviado no es válido.");
 
-        if (parsedStatus != AppointmentStatus.Cancelled && DateTime.UtcNow < ToAppointmentUtc(appointment.AppointmentDate, appointment.StartTime))
+        var tz = await GetTimeZoneAsync(cancellationToken);
+        if (parsedStatus != AppointmentStatus.Cancelled && DateTime.UtcNow < ToAppointmentUtc(appointment.AppointmentDate, appointment.StartTime, tz))
             return OperationResult<AppointmentResponse>.Validation("Solo puedes marcar como completada o no asistió desde la hora de la cita en adelante.");
 
         if (appointment.Status != AppointmentStatus.Scheduled)
@@ -157,10 +151,26 @@ public sealed class AppointmentLifecycleService(
 
         await _audit.LogAsync("appointment.status.updated", new { appointment.Id, appointment.Status }, cancellationToken);
         await _notifications.NotifyAppointmentStatusChangedAsync(appointment, cancellationToken);
-        await _cache.RemoveAsync($"availability:{appointment.ProviderId}:{appointment.AppointmentDate:yyyyMMdd}", cancellationToken);
+        await _cache.RemoveAsync(CacheKeys.AvailabilitySlots(appointment.ProviderId, appointment.AppointmentDate), cancellationToken);
 
         return OperationResult<AppointmentResponse>.Success(AppointmentMapper.ToResponse(appointment));
     }
+
+    private async Task<TimeZoneInfo> GetTimeZoneAsync(CancellationToken cancellationToken)
+    {
+        var settings = await GetSettingsAsync(cancellationToken);
+        try
+        {
+            return TimeZoneInfo.FindSystemTimeZoneById(settings.TimeZoneId);
+        }
+        catch (TimeZoneNotFoundException)
+        {
+            return TimeZoneInfo.FindSystemTimeZoneById("America/Bogota");
+        }
+    }
+
+    private static DateTime ToAppointmentUtc(DateOnly date, TimeOnly time, TimeZoneInfo tz) =>
+        TimeZoneInfo.ConvertTimeToUtc(date.ToDateTime(time), tz);
 
     private async Task<SystemSetting> GetSettingsAsync(CancellationToken cancellationToken) =>
         await _settings.GetAsync(cancellationToken) ?? new SystemSetting { WeeksAheadBooking = 6, TimeZoneId = "America/Bogota" };

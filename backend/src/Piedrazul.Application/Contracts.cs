@@ -240,6 +240,7 @@ public interface IPatientLookupService
 {
     Task<IReadOnlyList<PatientLookupResponse>> SearchPatientsAsync(string documentTerm, CancellationToken cancellationToken = default);
     Task<PatientLookupResponse?> GetPatientByDocumentAsync(string documentNumber, CancellationToken cancellationToken = default);
+    Task<PatientPublicLookupResponse> GetPublicPatientLookupAsync(string documentNumber, CancellationToken cancellationToken = default);
 }
 
 public interface IPatientService

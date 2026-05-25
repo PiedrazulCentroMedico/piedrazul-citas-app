@@ -78,17 +78,7 @@ public sealed class InternalController(
     {
         var normalizedRequest = request with { AppointmentId = appointmentId };
         var result = await _lifecycle.RescheduleAppointmentAsync(normalizedRequest, User.GetSubject(), cancellationToken);
-        if (result.Succeeded && result.Data is not null)
-            return Ok(result.Data);
-
-        var payload = new { errors = result.Errors };
-        return result.Status switch
-        {
-            OperationStatus.NotFound        => NotFound(payload),
-            OperationStatus.Conflict        => Conflict(payload),
-            OperationStatus.ValidationError => UnprocessableEntity(payload),
-            _                               => BadRequest(payload)
-        };
+        return result.Succeeded && result.Data is not null ? Ok(result.Data) : FromFailure(result);
     }
 
     [HttpGet("appointments/{appointmentId:guid}/history")]

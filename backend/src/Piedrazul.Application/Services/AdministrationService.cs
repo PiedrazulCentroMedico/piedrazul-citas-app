@@ -3,7 +3,11 @@ using Piedrazul.Domain;
 
 namespace Piedrazul.Application;
 
-public sealed class AdministrationService(IProviderRepository providerRepository, ISystemSettingsRepository settingsRepository, IPatientRepository patientRepository, IAppointmentRepository appointmentRepository) : IAdministrationService
+public sealed class AdministrationService(
+    IProviderRepository providerRepository,
+    ISystemSettingsRepository settingsRepository,
+    IPatientRepository patientRepository,
+    IAppointmentRepository appointmentRepository) : IAdministrationService
 {
     private readonly IProviderRepository _providers = providerRepository;
     private readonly ISystemSettingsRepository _settings = settingsRepository;
@@ -47,45 +51,9 @@ public sealed class AdministrationService(IProviderRepository providerRepository
 
     public async Task<OperationResult<ProviderScheduleResponse>> CreateProviderScheduleAsync(ProviderScheduleRequest request, CancellationToken cancellationToken = default)
     {
-        var errors = new List<string>();
-        errors.AddRange(ScheduleValidator.ValidateInterval(request.DefaultSlotIntervalMinutes));
-        errors.AddRange(PatientInputValidator.ValidateBasicPatientData("12345", request.FirstName, request.LastName, "3001234567", null)
-            .Where(x => !x.Contains("documento", StringComparison.OrdinalIgnoreCase) && !x.Contains("celular", StringComparison.OrdinalIgnoreCase)));
-
-        if (string.IsNullOrWhiteSpace(PatientInputValidator.Normalize(request.Specialty)) || request.Specialty.Length > 80)
-        {
-            errors.Add("La especialidad es obligatoria y no puede superar 80 caracteres.");
-        }
-
-        if (request.WeeklyAvailabilities.Count == 0)
-        {
-            errors.Add("Debes configurar al menos una franja de disponibilidad.");
-        }
-
-        var availabilitiesToSave = new List<WeeklyAvailability>();
-        foreach (var item in request.WeeklyAvailabilities)
-        {
-            errors.AddRange(ScheduleValidator.ValidateInterval(item.SlotIntervalMinutes));
-            if (!TimeOnly.TryParse(item.StartTime, out var startTime) || !TimeOnly.TryParse(item.EndTime, out var endTime) || startTime >= endTime)
-            {
-                errors.Add($"La franja del día {item.DayOfWeek} no es válida.");
-                continue;
-            }
-
-            availabilitiesToSave.Add(new WeeklyAvailability
-            {
-                DayOfWeek = item.DayOfWeek,
-                StartTime = startTime,
-                EndTime = endTime,
-                SlotIntervalMinutes = item.SlotIntervalMinutes,
-                IsActive = item.IsActive,
-            });
-        }
-
+        var (errors, availabilities) = ValidateAndBuildSlots(request);
         if (errors.Count > 0)
-        {
-            return OperationResult<ProviderScheduleResponse>.Validation(errors.Distinct().ToArray());
-        }
+            return OperationResult<ProviderScheduleResponse>.Validation(errors.ToArray());
 
         var codeBase = string.Concat(PatientInputValidator.Normalize(request.FirstName).Take(3)).ToUpperInvariant();
         var provider = new Provider
@@ -96,7 +64,7 @@ public sealed class AdministrationService(IProviderRepository providerRepository
             Specialty = PatientInputValidator.Normalize(request.Specialty),
             DefaultSlotIntervalMinutes = request.DefaultSlotIntervalMinutes,
             IsActive = true,
-            WeeklyAvailabilities = availabilitiesToSave,
+            WeeklyAvailabilities = availabilities,
         };
 
         await _providers.AddAsync(provider, cancellationToken);
@@ -112,50 +80,11 @@ public sealed class AdministrationService(IProviderRepository providerRepository
     {
         var provider = await _providers.GetByIdAsync(providerId, cancellationToken);
         if (provider is null)
-        {
             return OperationResult<ProviderScheduleResponse>.NotFound("No se encontró el profesional que deseas actualizar.");
-        }
 
-        var errors = new List<string>();
-        errors.AddRange(ScheduleValidator.ValidateInterval(request.DefaultSlotIntervalMinutes));
-        errors.AddRange(PatientInputValidator.ValidateBasicPatientData("12345", request.FirstName, request.LastName, "3001234567", null)
-            .Where(x => !x.Contains("documento", StringComparison.OrdinalIgnoreCase) && !x.Contains("celular", StringComparison.OrdinalIgnoreCase)));
-
-        if (string.IsNullOrWhiteSpace(PatientInputValidator.Normalize(request.Specialty)) || request.Specialty.Length > 80)
-        {
-            errors.Add("La especialidad es obligatoria y no puede superar 80 caracteres.");
-        }
-
-        if (request.WeeklyAvailabilities.Count == 0)
-        {
-            errors.Add("Debes configurar al menos una franja de disponibilidad.");
-        }
-
-        var availabilitiesToSave = new List<WeeklyAvailability>();
-        foreach (var item in request.WeeklyAvailabilities)
-        {
-            errors.AddRange(ScheduleValidator.ValidateInterval(item.SlotIntervalMinutes));
-            if (!TimeOnly.TryParse(item.StartTime, out var startTime) || !TimeOnly.TryParse(item.EndTime, out var endTime) || startTime >= endTime)
-            {
-                errors.Add($"La franja del día {item.DayOfWeek} no es válida.");
-                continue;
-            }
-
-            availabilitiesToSave.Add(new WeeklyAvailability
-            {
-                ProviderId = provider.Id,
-                DayOfWeek = item.DayOfWeek,
-                StartTime = startTime,
-                EndTime = endTime,
-                SlotIntervalMinutes = item.SlotIntervalMinutes,
-                IsActive = item.IsActive,
-            });
-        }
-
+        var (errors, availabilities) = ValidateAndBuildSlots(request, providerId);
         if (errors.Count > 0)
-        {
-            return OperationResult<ProviderScheduleResponse>.Validation(errors.Distinct().ToArray());
-        }
+            return OperationResult<ProviderScheduleResponse>.Validation(errors.ToArray());
 
         provider.FirstName = PatientInputValidator.Normalize(request.FirstName);
         provider.LastName = PatientInputValidator.Normalize(request.LastName);
@@ -165,7 +94,7 @@ public sealed class AdministrationService(IProviderRepository providerRepository
         try
         {
             await _providers.RemoveAvailabilitiesAsync(provider.Id, cancellationToken);
-            await _providers.AddAvailabilitiesAsync(availabilitiesToSave, cancellationToken);
+            await _providers.AddAvailabilitiesAsync(availabilities, cancellationToken);
             await _providers.SaveChangesAsync(cancellationToken);
         }
         catch (UniqueConstraintException)
@@ -183,9 +112,7 @@ public sealed class AdministrationService(IProviderRepository providerRepository
     {
         var provider = await _providers.GetByIdAsync(providerId, cancellationToken);
         if (provider is null)
-        {
             return OperationResult<bool>.NotFound("No se encontró el profesional que deseas eliminar.");
-        }
 
         provider.IsActive = false;
         await _providers.RemoveAvailabilitiesAsync(providerId, cancellationToken);
@@ -199,12 +126,10 @@ public sealed class AdministrationService(IProviderRepository providerRepository
         if (string.IsNullOrWhiteSpace(normalized)) return Array.Empty<PatientLookupResponse>();
 
         var profiles = await _patients.SearchByTermAsync(normalized, 25, cancellationToken);
-        var profileIds = profiles.Select(x => x.Id).ToArray();
-        var countMap = new Dictionary<Guid, int>();
-        foreach (var profileId in profileIds)
-        {
-            countMap[profileId] = await _appointments.CountScheduledAppointmentsByPatientIdAsync(profileId, cancellationToken);
-        }
+        if (profiles.Count == 0) return Array.Empty<PatientLookupResponse>();
+
+        var profileIds = profiles.Select(x => x.Id).ToList();
+        var countMap = await _appointments.CountScheduledByPatientIdsAsync(profileIds, cancellationToken);
 
         return profiles.Select(profile => new PatientLookupResponse(
             profile.Id,
@@ -224,15 +149,11 @@ public sealed class AdministrationService(IProviderRepository providerRepository
     {
         var errors = PatientInputValidator.ValidateBasicPatientData(request.DocumentNumber, request.FirstName, request.LastName, request.Phone, request.Email).ToList();
         if (errors.Count > 0)
-        {
             return OperationResult<PatientLookupResponse>.Validation(errors.ToArray());
-        }
 
         var patient = await _patients.GetByIdAsync(patientId, cancellationToken);
         if (patient is null)
-        {
             return OperationResult<PatientLookupResponse>.NotFound("No se encontró el paciente que deseas editar.");
-        }
 
         patient.DocumentNumber = PatientInputValidator.Normalize(request.DocumentNumber);
         patient.FirstName = PatientInputValidator.Normalize(request.FirstName);
@@ -252,12 +173,54 @@ public sealed class AdministrationService(IProviderRepository providerRepository
         }
 
         var scheduledCount = await _appointments.CountScheduledAppointmentsByPatientIdAsync(patient.Id, cancellationToken);
-        return OperationResult<PatientLookupResponse>.Success(new PatientLookupResponse(patient.Id, patient.DocumentNumber, patient.FirstName, patient.LastName, patient.FullName, patient.Phone, patient.Gender, patient.BirthDate, patient.Email, scheduledCount, !string.IsNullOrWhiteSpace(patient.ExternalUserId)));
+        return OperationResult<PatientLookupResponse>.Success(new PatientLookupResponse(
+            patient.Id, patient.DocumentNumber, patient.FirstName, patient.LastName,
+            patient.FullName, patient.Phone, patient.Gender, patient.BirthDate, patient.Email,
+            scheduledCount, !string.IsNullOrWhiteSpace(patient.ExternalUserId)));
     }
 
-    private static ProviderScheduleResponse ToResponse(Provider provider)
+    private static (List<string> Errors, List<WeeklyAvailability> Availabilities)
+        ValidateAndBuildSlots(ProviderScheduleRequest request, Guid? providerId = null)
     {
-        return new ProviderScheduleResponse(
+        var errors = new List<string>();
+        errors.AddRange(ScheduleValidator.ValidateInterval(request.DefaultSlotIntervalMinutes));
+        errors.AddRange(PatientInputValidator.ValidatePersonName(request.FirstName, request.LastName));
+
+        var normalizedSpecialty = PatientInputValidator.Normalize(request.Specialty);
+        if (string.IsNullOrWhiteSpace(normalizedSpecialty) || normalizedSpecialty.Length > 80)
+            errors.Add("La especialidad es obligatoria y no puede superar 80 caracteres.");
+
+        if (request.WeeklyAvailabilities.Count == 0)
+            errors.Add("Debes configurar al menos una franja de disponibilidad.");
+
+        var availabilities = new List<WeeklyAvailability>();
+        foreach (var item in request.WeeklyAvailabilities)
+        {
+            errors.AddRange(ScheduleValidator.ValidateInterval(item.SlotIntervalMinutes));
+            if (!TimeOnly.TryParse(item.StartTime, out var startTime)
+                || !TimeOnly.TryParse(item.EndTime, out var endTime)
+                || startTime >= endTime)
+            {
+                errors.Add($"La franja del día {item.DayOfWeek} no es válida.");
+                continue;
+            }
+
+            availabilities.Add(new WeeklyAvailability
+            {
+                ProviderId = providerId ?? Guid.Empty,
+                DayOfWeek = item.DayOfWeek,
+                StartTime = startTime,
+                EndTime = endTime,
+                SlotIntervalMinutes = item.SlotIntervalMinutes,
+                IsActive = item.IsActive,
+            });
+        }
+
+        return (errors.Distinct().ToList(), availabilities);
+    }
+
+    private static ProviderScheduleResponse ToResponse(Provider provider) =>
+        new(
             provider.Id,
             provider.DisplayName,
             provider.Specialty,
@@ -267,5 +230,4 @@ public sealed class AdministrationService(IProviderRepository providerRepository
                 .ThenBy(x => x.StartTime)
                 .Select(x => new WeeklyAvailabilityDto(x.Id, x.DayOfWeek, x.StartTime.ToString("HH:mm"), x.EndTime.ToString("HH:mm"), x.SlotIntervalMinutes, x.IsActive))
                 .ToList());
-    }
 }

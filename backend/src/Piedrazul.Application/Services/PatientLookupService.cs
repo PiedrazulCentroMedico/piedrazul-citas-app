@@ -17,7 +17,7 @@ public sealed class PatientLookupService(
             return Array.Empty<PatientLookupResponse>();
 
         var profiles = await _patients.SearchByPrefixAsync(normalized, 10, cancellationToken);
-        return await MapPatientLookupResponsesAsync(profiles, cancellationToken);
+        return await MapToLookupResponsesAsync(profiles, cancellationToken);
     }
 
     public async Task<PatientLookupResponse?> GetPatientByDocumentAsync(string documentNumber, CancellationToken cancellationToken = default)
@@ -31,7 +31,47 @@ public sealed class PatientLookupService(
             return null;
 
         var scheduledCount = await _appointments.CountScheduledAppointmentsByPatientIdAsync(profile.Id, cancellationToken);
-        return new PatientLookupResponse(
+        return ToLookupResponse(profile, scheduledCount);
+    }
+
+    public async Task<PatientPublicLookupResponse> GetPublicPatientLookupAsync(string documentNumber, CancellationToken cancellationToken = default)
+    {
+        var normalized = PatientInputValidator.Normalize(documentNumber);
+        if (string.IsNullOrWhiteSpace(normalized))
+            return new PatientPublicLookupResponse(false, null, null, null, null, null, null, null);
+
+        var profile = await _patients.GetByDocumentAsync(normalized, cancellationToken);
+        if (profile is null)
+            return new PatientPublicLookupResponse(false, null, null, null, null, null, null, null);
+
+        return new PatientPublicLookupResponse(
+            Exists: true,
+            Id: profile.Id,
+            FirstName: profile.FirstName,
+            LastName: profile.LastName,
+            Gender: profile.Gender,
+            MaskedPhone: PiiMasking.MaskPhone(profile.Phone),
+            MaskedEmail: PiiMasking.MaskEmail(profile.Email),
+            BirthYear: profile.BirthDate?.Year);
+    }
+
+    private async Task<IReadOnlyList<PatientLookupResponse>> MapToLookupResponsesAsync(
+        IReadOnlyList<PatientProfile> profiles,
+        CancellationToken cancellationToken)
+    {
+        if (profiles.Count == 0)
+            return Array.Empty<PatientLookupResponse>();
+
+        var profileIds = profiles.Select(x => x.Id).ToList();
+        var countMap = await _appointments.CountScheduledByPatientIdsAsync(profileIds, cancellationToken);
+
+        return profiles
+            .Select(x => ToLookupResponse(x, countMap.GetValueOrDefault(x.Id, 0)))
+            .ToList();
+    }
+
+    private static PatientLookupResponse ToLookupResponse(PatientProfile profile, int scheduledCount) =>
+        new(
             profile.Id,
             profile.DocumentNumber,
             profile.FirstName,
@@ -43,22 +83,4 @@ public sealed class PatientLookupService(
             profile.Email,
             scheduledCount,
             !string.IsNullOrWhiteSpace(profile.ExternalUserId));
-    }
-
-    private async Task<IReadOnlyList<PatientLookupResponse>> MapPatientLookupResponsesAsync(IReadOnlyList<PatientProfile> profiles, CancellationToken cancellationToken)
-    {
-        if (profiles.Count == 0)
-            return Array.Empty<PatientLookupResponse>();
-
-        var counts = new Dictionary<Guid, int>();
-        foreach (var profileId in profiles.Select(x => x.Id))
-            counts[profileId] = await _appointments.CountScheduledAppointmentsByPatientIdAsync(profileId, cancellationToken);
-
-        return profiles.Select(x => new PatientLookupResponse(
-                x.Id, x.DocumentNumber, x.FirstName, x.LastName, x.FullName,
-                x.Phone, x.Gender, x.BirthDate, x.Email,
-                counts.GetValueOrDefault(x.Id, 0),
-                !string.IsNullOrWhiteSpace(x.ExternalUserId)))
-            .ToList();
-    }
 }

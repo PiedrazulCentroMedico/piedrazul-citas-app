@@ -87,6 +87,18 @@ public sealed class AppointmentRepository(AppDbContext dbContext) : IAppointment
             .CountAsync(x => x.PatientProfileId == patientId && x.Status == AppointmentStatus.Scheduled, cancellationToken);
     }
 
+    public async Task<Dictionary<Guid, int>> CountScheduledByPatientIdsAsync(IReadOnlyList<Guid> patientIds, CancellationToken cancellationToken = default)
+    {
+        if (patientIds.Count == 0) return new Dictionary<Guid, int>();
+
+        return await _dbContext.Appointments
+            .AsNoTracking()
+            .Where(x => patientIds.Contains(x.PatientProfileId) && x.Status == AppointmentStatus.Scheduled)
+            .GroupBy(x => x.PatientProfileId)
+            .Select(g => new { Id = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.Id, x => x.Count, cancellationToken);
+    }
+
     public async Task AddAppointmentAsync(Appointment appointment, CancellationToken cancellationToken = default)
     {
         await _dbContext.Appointments.AddAsync(appointment, cancellationToken);

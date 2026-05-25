@@ -103,8 +103,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         {
             if (entry.State == EntityState.Added)
                 entry.Entity.CreatedAtUtc = DateTime.UtcNow;
-
-            entry.Entity.UpdatedAtUtc = DateTime.UtcNow;
+            else
+                entry.Entity.UpdatedAtUtc = DateTime.UtcNow;
         }
 
         try

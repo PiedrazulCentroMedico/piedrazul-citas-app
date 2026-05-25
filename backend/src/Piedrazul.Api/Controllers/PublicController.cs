@@ -44,19 +44,8 @@ public sealed class PublicController(
     [HttpGet("patients/lookup")]
     public async Task<ActionResult<PatientPublicLookupResponse>> LookupPatient([FromQuery] string document, CancellationToken cancellationToken)
     {
-        var patient = await _patientLookup.GetPatientByDocumentAsync(document, cancellationToken);
-        if (patient is null)
-            return Ok(new PatientPublicLookupResponse(false, null, null, null, null, null, null, null));
-
-        return Ok(new PatientPublicLookupResponse(
-            Exists: true,
-            Id: patient.Id,
-            FirstName: patient.FirstName,
-            LastName: patient.LastName,
-            Gender: patient.Gender,
-            MaskedPhone: PiiMasking.MaskPhone(patient.Phone),
-            MaskedEmail: PiiMasking.MaskEmail(patient.Email),
-            BirthYear: patient.BirthDate?.Year));
+        var result = await _patientLookup.GetPublicPatientLookupAsync(document, cancellationToken);
+        return Ok(result);
     }
 
     [HttpPost("appointments")]
