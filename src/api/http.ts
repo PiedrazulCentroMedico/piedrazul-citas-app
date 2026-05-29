@@ -1,5 +1,5 @@
 import { appConfig } from '../config';
-import type { SessionUser } from '../types';
+import type { AppointmentHistoryResponse, AppointmentResponse, RescheduleAppointmentRequest, SessionUser } from '../types';
 
 interface RequestOptions extends Omit<RequestInit, 'body'> {
   body?: unknown;
@@ -88,4 +88,26 @@ export async function apiRequest<T>(path: string, session: SessionUser | null, o
   }
 
   return (await response.json()) as T;
+}
+
+export async function getAppointmentHistory(session: SessionUser, appointmentId: string): Promise<AppointmentHistoryResponse[]> {
+  return apiRequest<AppointmentHistoryResponse[]>(`/api/internal/appointments/${appointmentId}/history`, session);
+}
+
+export async function rescheduleAppointment(
+  session: SessionUser,
+  request: RescheduleAppointmentRequest,
+): Promise<AppointmentResponse> {
+  return apiRequest<AppointmentResponse>(
+    `/api/internal/appointments/${request.appointmentId}/reschedule`,
+    session,
+    {
+      method: 'PUT',
+      body: {
+        newDate: request.appointmentDate,
+        newStartTime: request.startTime,
+        reason: request.reason,
+      },
+    },
+  );
 }

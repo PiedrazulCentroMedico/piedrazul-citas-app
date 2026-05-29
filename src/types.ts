@@ -174,3 +174,23 @@ export interface CaptchaChallenge {
 export interface UpdateAppointmentStatusPayload {
   status: AppointmentStatusValue;
 }
+
+export interface RescheduleAppointmentRequest {
+  appointmentId: string;
+  appointmentDate: string;
+  startTime: string;
+  reason?: string;
+}
+
+export interface AppointmentHistoryResponse {
+  appointmentId: string;
+  previousDate: string;
+  previousStartTime: string;
+  previousEndTime: string;
+  newDate: string;
+  newStartTime: string;
+  newEndTime: string;
+  reason?: string | null;
+  changedBy: string;
+  changedAtUtc: string;
+}
