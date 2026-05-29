@@ -98,6 +98,9 @@ public sealed class ExcelExporterTests
         public Task<int> CountScheduledAppointmentsByPatientIdAsync(Guid id, CancellationToken ct = default) =>
             Task.FromResult(0);
 
+        public Task<Dictionary<Guid, int>> CountScheduledByPatientIdsAsync(IReadOnlyList<Guid> patientIds, CancellationToken ct = default) =>
+            Task.FromResult(new Dictionary<Guid, int>());
+
         public Task AddAppointmentAsync(Appointment a, CancellationToken ct = default) => Task.CompletedTask;
         public Task AddHistoryAsync(AppointmentHistory h, CancellationToken ct = default) => Task.CompletedTask;
         public Task SaveChangesAsync(CancellationToken ct = default) => Task.CompletedTask;

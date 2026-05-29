@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { apiRequest } from '../api/http';
+import { apiRequest, getAppointmentHistory, rescheduleAppointment } from '../api/http';
 import { useAuth } from '../auth/AuthContext';
 import { PortalTabs } from '../components/PortalTabs';
-import type { AppointmentListResponse, AppointmentResponse, AppointmentStatusValue, ProviderSummary } from '../types';
+import type { AppointmentHistoryResponse, AppointmentListResponse, AppointmentResponse, AppointmentStatusValue, AvailabilitySlot, ProviderSummary } from '../types';
 import { getLinkedProviderId } from '../utils/sessionStorage';
 import { formatDateLabel, hasSettingsAccess, isDoctorRole } from '../utils/validators';
 import { canTransitionStatus, hasAppointmentStarted, isTerminalStatus, translateStatusLabel } from '../utils/status';
@@ -95,6 +95,13 @@ export function InternalAppointmentsPage() {
   const [loading, setLoading] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [draftStatuses, setDraftStatuses] = useState<Record<string, AppointmentStatusValue>>({});
+  const [rescheduling, setRescheduling] = useState<{ appointment: AppointmentResponse; date: string; startTime: string; reason: string } | null>(null);
+  const [rescheduleSlots, setRescheduleSlots] = useState<AvailabilitySlot[]>([]);
+  const [rescheduleSubmitting, setRescheduleSubmitting] = useState(false);
+  const [rescheduleError, setRescheduleError] = useState<string | null>(null);
+  const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
+  const [historyMap, setHistoryMap] = useState<Record<string, AppointmentHistoryResponse[]>>({});
+  const [loadingHistoryId, setLoadingHistoryId] = useState<string | null>(null);
 
   const tabs = useMemo(() => {
     const base = [{ to: '/portal/interno/citas', label: isDoctor ? 'Mis citas' : 'Listado de citas' }];
@@ -153,6 +160,16 @@ export function InternalAppointmentsPage() {
   useEffect(() => {
     if (providerId) void searchAppointments();
   }, [providerId]);
+
+  useEffect(() => {
+    if (!rescheduling?.date || !providerId) {
+      setRescheduleSlots([]);
+      return;
+    }
+    apiRequest<AvailabilitySlot[]>(`/api/public/providers/${providerId}/availability?date=${rescheduling.date}`, session)
+      .then(setRescheduleSlots)
+      .catch(() => setRescheduleSlots([]));
+  }, [rescheduling?.date, providerId, session]);
 
   const downloadPdf = async () => {
     if (!providerId) return;
@@ -220,6 +237,59 @@ export function InternalAppointmentsPage() {
       setMessage(error instanceof Error ? error.message : 'No fue posible actualizar el estado de la cita.');
     } finally {
       setSavingId(null);
+    }
+  };
+
+  const toggleHistory = async (appointmentId: string) => {
+    if (expandedHistoryId === appointmentId) {
+      setExpandedHistoryId(null);
+      return;
+    }
+    setExpandedHistoryId(appointmentId);
+    if (historyMap[appointmentId] !== undefined) return;
+    try {
+      setLoadingHistoryId(appointmentId);
+      const history = await getAppointmentHistory(session!, appointmentId);
+      setHistoryMap((current) => ({ ...current, [appointmentId]: history }));
+    } catch {
+      setHistoryMap((current) => ({ ...current, [appointmentId]: [] }));
+    } finally {
+      setLoadingHistoryId(null);
+    }
+  };
+
+  const openRescheduleModal = (appointment: AppointmentResponse) => {
+    setRescheduling({ appointment, date: appointment.appointmentDate, startTime: '', reason: '' });
+    setRescheduleError(null);
+  };
+
+  const confirmReschedule = async () => {
+    if (!rescheduling || !session || !rescheduling.startTime) {
+      setRescheduleError('Selecciona una fecha y hora para reagendar.');
+      return;
+    }
+    try {
+      setRescheduleSubmitting(true);
+      setRescheduleError(null);
+      const updated = await rescheduleAppointment(session, {
+        appointmentId: rescheduling.appointment.id,
+        appointmentDate: rescheduling.date,
+        startTime: rescheduling.startTime,
+        reason: rescheduling.reason || undefined,
+      });
+      setResults((current) =>
+        current.map((result) => ({
+          ...result,
+          items: result.items.map((item) => (item.id === updated.id ? updated : item)),
+        })),
+      );
+      setDraftStatuses((current) => ({ ...current, [updated.id]: translateStatusLabel(updated.status) as AppointmentStatusValue }));
+      setRescheduling(null);
+      setMessage('La cita fue reagendada correctamente.');
+    } catch (error) {
+      setRescheduleError(error instanceof Error ? error.message : 'No fue posible reagendar la cita.');
+    } finally {
+      setRescheduleSubmitting(false);
     }
   };
 
@@ -305,6 +375,7 @@ export function InternalAppointmentsPage() {
                     <th>Canal</th>
                     <th>Estado</th>
                     <th>Actualizar estado</th>
+                    <th>Historial</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -315,6 +386,7 @@ export function InternalAppointmentsPage() {
                     const selectedStatus = draftStatuses[appointment.id] ?? (translatedStatus as AppointmentStatusValue);
                     const canSaveStatus = canTransitionStatus(appointment.status, selectedStatus, appointment.appointmentDate, appointment.startTime);
                     return (
+                      <>
                       <tr key={appointment.id}>
                         {useDateRange && <td>{formatDateLabel(appointment.appointmentDate)}</td>}
                         <td>{appointment.startTime} - {appointment.endTime}</td>
@@ -346,11 +418,64 @@ export function InternalAppointmentsPage() {
                             >
                               {savingId === appointment.id ? 'Guardando...' : 'Guardar'}
                             </button>
+                            {!isDoctor && translatedStatus === 'Programada' && selectedStatus === translatedStatus && (
+                              <button
+                                type="button"
+                                className="button button-secondary"
+                                onClick={() => openRescheduleModal(appointment)}
+                              >
+                                Reagendar
+                              </button>
+                            )}
                           </div>
                           {!started && selectedStatus !== 'Cancelada' && <small className="helper-text">Antes de la hora de atención solo puedes cambiar la cita a Cancelada.</small>}
                           {terminal && <small className="helper-text">Este estado ya no se puede modificar.</small>}
                         </td>
+                        <td>
+                          <button
+                            type="button"
+                            className="button button-secondary"
+                            onClick={() => void toggleHistory(appointment.id)}
+                          >
+                            {loadingHistoryId === appointment.id ? 'Cargando...' : expandedHistoryId === appointment.id ? 'Ocultar' : 'Ver historial'}
+                          </button>
+                        </td>
                       </tr>
+                      {expandedHistoryId === appointment.id && (
+                        <tr key={`history-${appointment.id}`}>
+                          <td colSpan={useDateRange ? 9 : 8} className="history-panel">
+                            {loadingHistoryId === appointment.id ? (
+                              <p className="muted-text">Cargando historial...</p>
+                            ) : (historyMap[appointment.id] ?? []).length === 0 ? (
+                              <p className="muted-text">Sin reagendamientos registrados.</p>
+                            ) : (
+                              <table className="history-table">
+                                <thead>
+                                  <tr>
+                                    <th>Fecha y hora anterior</th>
+                                    <th>Nueva fecha y hora</th>
+                                    <th>Responsable</th>
+                                    <th>Fecha del cambio</th>
+                                    <th>Motivo</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {(historyMap[appointment.id] ?? []).map((entry, index) => (
+                                    <tr key={index}>
+                                      <td>{formatDateLabel(entry.previousDate)} {entry.previousStartTime} – {entry.previousEndTime}</td>
+                                      <td>{formatDateLabel(entry.newDate)} {entry.newStartTime} – {entry.newEndTime}</td>
+                                      <td>{entry.changedBy}</td>
+                                      <td>{new Date(entry.changedAtUtc).toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' })}</td>
+                                      <td>{entry.reason ?? '—'}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            )}
+                          </td>
+                        </tr>
+                      )}
+                      </>
                     );
                   })}
                 </tbody>
@@ -364,6 +489,71 @@ export function InternalAppointmentsPage() {
             </div>
           )}
         </section>
+      )}
+
+      {rescheduling && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true">
+          <div className="modal-card stack-md">
+            <h2>Reagendar cita</h2>
+            <p className="muted-text">
+              {rescheduling.appointment.patientFullName} · {rescheduling.appointment.appointmentDate} {rescheduling.appointment.startTime}
+            </p>
+            <div className="form-grid">
+              <label>
+                Nueva fecha
+                <input
+                  type="date"
+                  value={rescheduling.date}
+                  onChange={(event) => setRescheduling((current) => current ? { ...current, date: event.target.value, startTime: '' } : null)}
+                />
+              </label>
+              <label>
+                Nueva hora
+                <select
+                  value={rescheduling.startTime}
+                  onChange={(event) => setRescheduling((current) => current ? { ...current, startTime: event.target.value } : null)}
+                  disabled={rescheduleSlots.length === 0}
+                >
+                  <option value="">Selecciona una hora</option>
+                  {rescheduleSlots.filter((slot) => slot.available).map((slot) => (
+                    <option key={slot.startTime} value={slot.startTime}>
+                      {slot.startTime} – {slot.endTime}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="span-two">
+                Motivo del cambio (opcional)
+                <textarea
+                  value={rescheduling.reason}
+                  maxLength={500}
+                  rows={3}
+                  onChange={(event) => setRescheduling((current) => current ? { ...current, reason: event.target.value } : null)}
+                  placeholder="Describe el motivo del reagendamiento..."
+                />
+              </label>
+            </div>
+            {rescheduleError && <div className="feedback-card error">{rescheduleError}</div>}
+            <div className="inline-actions end wrap">
+              <button
+                type="button"
+                className="button button-secondary"
+                onClick={() => setRescheduling(null)}
+                disabled={rescheduleSubmitting}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="button"
+                onClick={() => void confirmReschedule()}
+                disabled={rescheduleSubmitting || !rescheduling.startTime}
+              >
+                {rescheduleSubmitting ? 'Guardando...' : 'Confirmar reagendamiento'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
