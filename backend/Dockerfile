@@ -2,7 +2,8 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /app
 
 COPY . .
-
+RUN ls -la
+RUN ls -la src/ || echo "No existe carpeta src"
 RUN dotnet publish src/Piedrazul.Api/Piedrazul.Api.csproj -c Release -o /app/publish
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
