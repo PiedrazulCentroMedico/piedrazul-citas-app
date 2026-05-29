@@ -34,7 +34,7 @@ public sealed class AppointmentBookingService(
             request.BookAsGuest, AppointmentChannel.Web, null, externalUserId, createdBy, cancellationToken);
 
         if (result.Succeeded && result.Data is not null)
-            await _cache.RemoveAsync($"availability:{request.ProviderId}:{request.AppointmentDate:yyyyMMdd}", cancellationToken);
+            await _cache.RemoveAsync(CacheKeys.AvailabilitySlots(request.ProviderId, request.AppointmentDate), cancellationToken);
 
         return result;
     }
@@ -54,7 +54,7 @@ public sealed class AppointmentBookingService(
             false, channel, request.Notes, null, createdBy, cancellationToken);
 
         if (result.Succeeded && result.Data is not null)
-            await _cache.RemoveAsync($"availability:{request.ProviderId}:{request.AppointmentDate:yyyyMMdd}", cancellationToken);
+            await _cache.RemoveAsync(CacheKeys.AvailabilitySlots(request.ProviderId, request.AppointmentDate), cancellationToken);
 
         return result;
     }

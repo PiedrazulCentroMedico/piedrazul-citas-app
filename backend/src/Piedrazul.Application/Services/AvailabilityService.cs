@@ -37,7 +37,7 @@ public sealed class AvailabilityService(
         if (date > today.AddDays(settings.WeeksAheadBooking * 7))
             return OperationResult<IReadOnlyList<AvailabilitySlotResponse>>.Validation($"Solo se pueden reservar citas dentro de las próximas {settings.WeeksAheadBooking} semanas.");
 
-        var cacheKey = $"availability:{providerId}:{date:yyyyMMdd}";
+        var cacheKey = CacheKeys.AvailabilitySlots(providerId, date);
         var cached = await _cache.GetOrSetAsync(cacheKey, TimeSpan.FromMinutes(2), async () =>
         {
             var availabilities = await _appointments.GetWeeklyAvailabilitiesAsync(providerId, date.DayOfWeek, cancellationToken);

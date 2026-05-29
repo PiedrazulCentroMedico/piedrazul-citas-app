@@ -71,21 +71,7 @@ public sealed class PatientService(IPatientRepository patientRepository, IAppoin
 
         var appointmentEntities = await _appointments.GetAppointmentsByDocumentAsync(patient.DocumentNumber, cancellationToken);
         var appointments = appointmentEntities
-            .OrderByDescending(x => x.AppointmentDate)
-            .ThenBy(x => x.StartTime)
-            .Select(x => new AppointmentResponse(
-                x.Id,
-                x.Provider?.DisplayName ?? string.Empty,
-                x.Provider?.Specialty ?? string.Empty,
-                x.PatientProfile?.FullName ?? string.Empty,
-                x.PatientProfile?.DocumentNumber ?? string.Empty,
-                x.PatientProfile?.Phone ?? string.Empty,
-                x.AppointmentDate,
-                x.StartTime.ToString("HH:mm"),
-                x.EndTime.ToString("HH:mm"),
-                x.Status switch { AppointmentStatus.Scheduled => "Programada", AppointmentStatus.Cancelled => "Cancelada", AppointmentStatus.Completed => "Completada", AppointmentStatus.NoShow => "No asistió", _ => "Programada" },
-                x.Channel switch { AppointmentChannel.Web => "Web", AppointmentChannel.WhatsApp => "WhatsApp", AppointmentChannel.Phone => "Llamada", AppointmentChannel.Internal => "Portal interno", _ => "Web" },
-                x.Notes))
+            .Select(AppointmentMapper.ToResponse)
             .ToList();
 
         return OperationResult<IReadOnlyList<AppointmentResponse>>.Success(appointments);

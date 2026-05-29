@@ -30,7 +30,9 @@ public sealed class PatientRepository(AppDbContext dbContext) : IPatientReposito
     {
         return await _dbContext.PatientProfiles
             .AsNoTracking()
-            .Where(x => x.DocumentNumber.StartsWith(term) || x.FirstName.Contains(term) || x.LastName.Contains(term))
+            .Where(x => EF.Functions.ILike(x.DocumentNumber, $"{term}%")
+                     || EF.Functions.ILike(x.FirstName, $"%{term}%")
+                     || EF.Functions.ILike(x.LastName, $"%{term}%"))
             .OrderBy(x => x.DocumentNumber)
             .Take(take)
             .ToListAsync(cancellationToken);
@@ -40,7 +42,9 @@ public sealed class PatientRepository(AppDbContext dbContext) : IPatientReposito
     {
         return await _dbContext.PatientProfiles
             .AsNoTracking()
-            .Where(x => x.DocumentNumber.Contains(term) || x.FirstName.Contains(term) || x.LastName.Contains(term))
+            .Where(x => EF.Functions.ILike(x.DocumentNumber, $"%{term}%")
+                     || EF.Functions.ILike(x.FirstName, $"%{term}%")
+                     || EF.Functions.ILike(x.LastName, $"%{term}%"))
             .OrderBy(x => x.FirstName)
             .ThenBy(x => x.LastName)
             .Take(take)

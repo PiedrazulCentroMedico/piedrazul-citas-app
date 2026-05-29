@@ -36,10 +36,26 @@ public static class PatientInputValidator
 {
     private static readonly Regex DigitsOnly = new("^[0-9]+$", RegexOptions.Compiled);
     private static readonly Regex PersonName = new("^[A-Za-zÁÉÍÓÚáéíóúÑñÜü' -]+$", RegexOptions.Compiled);
+    private static readonly Regex WhitespaceCollapse = new(@"\s+", RegexOptions.Compiled);
 
     public static string Normalize(string? value)
     {
-        return Regex.Replace(value?.Trim() ?? string.Empty, "\\s+", " ");
+        return WhitespaceCollapse.Replace(value?.Trim() ?? string.Empty, " ");
+    }
+
+    public static IReadOnlyList<string> ValidatePersonName(string firstName, string lastName)
+    {
+        var errors = new List<string>();
+        var normalizedFirst = Normalize(firstName);
+        var normalizedLast = Normalize(lastName);
+
+        if (normalizedFirst.Length is < 2 or > 80 || !PersonName.IsMatch(normalizedFirst))
+            errors.Add("Los nombres solo pueden contener letras, espacios, apóstrofes o guiones y tener entre 2 y 80 caracteres.");
+
+        if (normalizedLast.Length is < 2 or > 80 || !PersonName.IsMatch(normalizedLast))
+            errors.Add("Los apellidos solo pueden contener letras, espacios, apóstrofes o guiones y tener entre 2 y 80 caracteres.");
+
+        return errors;
     }
 
     public static IReadOnlyList<string> ValidateBasicPatientData(
@@ -51,8 +67,6 @@ public static class PatientInputValidator
     {
         var errors = new List<string>();
         var normalizedDocument = Normalize(documentNumber);
-        var normalizedFirstName = Normalize(firstName);
-        var normalizedLastName = Normalize(lastName);
         var normalizedPhone = Normalize(phone);
         var normalizedEmail = Normalize(email);
 
@@ -61,15 +75,7 @@ public static class PatientInputValidator
             errors.Add("El documento debe contener solo números y tener entre 5 y 20 dígitos.");
         }
 
-        if (normalizedFirstName.Length is < 2 or > 80 || !PersonName.IsMatch(normalizedFirstName))
-        {
-            errors.Add("Los nombres solo pueden contener letras, espacios, apóstrofes o guiones y tener entre 2 y 80 caracteres.");
-        }
-
-        if (normalizedLastName.Length is < 2 or > 80 || !PersonName.IsMatch(normalizedLastName))
-        {
-            errors.Add("Los apellidos solo pueden contener letras, espacios, apóstrofes o guiones y tener entre 2 y 80 caracteres.");
-        }
+        errors.AddRange(ValidatePersonName(firstName, lastName));
 
         if (normalizedPhone.Length is < 7 or > 15 || !DigitsOnly.IsMatch(normalizedPhone))
         {
