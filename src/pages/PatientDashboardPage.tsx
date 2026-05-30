@@ -88,7 +88,6 @@ export function PatientDashboardPage() {
           <div className="inline-actions wrap">
             <Link className="button" to="/reservar">Reservar nueva cita</Link>
             <Link className="button button-secondary" to="/portal/paciente/perfil">Actualizar perfil</Link>
-            <Link className="button button-secondary" to="/consultar-citas">Consultar por cédula</Link>
           </div>
         </article>
       </section>

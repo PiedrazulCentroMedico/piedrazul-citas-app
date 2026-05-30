@@ -17,6 +17,33 @@ function toLocalDateInputValue(date: Date) {
   return `${year}-${month}-${day}`;
 }
 
+function addDays(date: Date, days: number) {
+  const copy = new Date(date);
+  copy.setDate(copy.getDate() + days);
+  return copy;
+}
+
+function formatShortDay(date: Date) {
+  return new Intl.DateTimeFormat('es-CO', {
+    weekday: 'short',
+    day: '2-digit',
+    month: 'short',
+  }).format(date);
+}
+
+function buildDateOptions(offset: number) {
+  const today = new Date();
+  const startDate = addDays(today, offset);
+
+  return Array.from({ length: 7 }, (_, index) => {
+    const date = addDays(startDate, index);
+    return {
+      value: toLocalDateInputValue(date),
+      label: formatShortDay(date),
+    };
+  });
+}
+
 function createCaptchaChallenge(): CaptchaChallenge {
   const left = Math.floor(Math.random() * 8) + 2;
   const right = Math.floor(Math.random() * 8) + 1;
@@ -25,7 +52,7 @@ function createCaptchaChallenge(): CaptchaChallenge {
 
 const initialForm = {
   providerId: '',
-  appointmentDate: '',
+  appointmentDate: toLocalDateInputValue(new Date()),
   startTime: '',
   documentNumber: '',
   firstName: '',
@@ -41,6 +68,7 @@ export function PublicBookingPage() {
   const { session } = useAuth();
   const isPatientSession = session?.roles.includes('Patient') ?? false;
   const [form, setForm] = useState(initialForm);
+  const [dateOffset, setDateOffset] = useState(0);
   const [providers, setProviders] = useState<ProviderSummary[]>([]);
   const [slots, setSlots] = useState<AvailabilitySlot[]>([]);
   const [message, setMessage] = useState<string | null>(null);
@@ -91,13 +119,26 @@ export function PublicBookingPage() {
     }
 
     setLoadingSlots(true);
-    apiRequest<AvailabilitySlot[]>(`/api/public/providers/${form.providerId}/availability?date=${form.appointmentDate}`, null)
-      .then(setSlots)
-      .catch((error: Error) => setMessage(error.message))
+    setMessage(null);
+
+    const encodedDate = encodeURIComponent(form.appointmentDate);
+
+    apiRequest<AvailabilitySlot[]>(
+      `/api/public/providers/${form.providerId}/availability?date=${encodedDate}`,
+      null,
+    )
+      .then((data) => {
+        setSlots(data);
+      })
+      .catch((error: Error) => {
+        setSlots([]);
+        setMessage(error.message);
+      })
       .finally(() => setLoadingSlots(false));
   }, [form.providerId, form.appointmentDate]);
 
   const selectedProvider = useMemo(() => providers.find((provider) => provider.id === form.providerId), [providers, form.providerId]);
+  const dateOptions = useMemo(() => buildDateOptions(dateOffset), [dateOffset]);
   const mustCreateAccount = false;
 
   const visibleSlots = useMemo(() => {
@@ -356,7 +397,8 @@ export function PublicBookingPage() {
 
         <section className="section-card stack-md">
           <h2>{isPatientSession ? 'Paso 2. Selecciona el profesional y la fecha' : 'Paso 3. Selecciona el profesional y la fecha'}</h2>
-          <div className="form-grid internal-filter-grid">
+
+          <div className="form-grid">
             <label>
               Profesional
               <select value={form.providerId} onChange={(event) => handleChange('providerId', event.target.value)}>
@@ -366,12 +408,43 @@ export function PublicBookingPage() {
                 ))}
               </select>
             </label>
-            <label>
-              Fecha
-              <input type="date" min={toLocalDateInputValue(new Date())} value={form.appointmentDate} onChange={(event) => handleChange('appointmentDate', event.target.value)} />
-            </label>
           </div>
+
           {selectedProvider && <div className="summary-badge">{selectedProvider.fullName} · {selectedProvider.specialty}</div>}
+
+          <div className="date-strip" aria-label="Seleccionar fecha de la cita">
+            <button
+              type="button"
+              className="date-strip-arrow"
+              onClick={() => setDateOffset((current) => Math.max(0, current - 7))}
+              disabled={dateOffset === 0}
+              aria-label="Ver fechas anteriores"
+            >
+              ‹
+            </button>
+
+            <div className="date-strip-days">
+              {dateOptions.map((dateOption) => (
+                <button
+                  key={dateOption.value}
+                  type="button"
+                  className={`date-option ${form.appointmentDate === dateOption.value ? 'selected' : ''}`}
+                  onClick={() => handleChange('appointmentDate', dateOption.value)}
+                >
+                  <strong>{dateOption.label}</strong>
+                </button>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              className="date-strip-arrow"
+              onClick={() => setDateOffset((current) => current + 7)}
+              aria-label="Ver más fechas"
+            >
+              ›
+            </button>
+          </div>
         </section>
 
         <section className="section-card stack-md">
@@ -448,20 +521,15 @@ export function PublicBookingPage() {
           )}
 
           <div className="inline-actions end wrap">
-            <button type="button" className="button" onClick={() => {
-              setSuccess(null);
-              navigate(isPatientSession ? '/portal/paciente' : '/consultar-citas', { replace: true });
-            }}>
-              <button
+            <button
               type="button"
               className="button"
               onClick={() => {
                 setSuccess(null);
-                navigate('/', { replace: true });
+                navigate(isPatientSession ? '/portal/paciente' : '/', { replace: true });
               }}
             >
-              Ir al inicio
-            </button>
+              {isPatientSession ? 'Ir a mis citas' : 'Ir al inicio'}
             </button>
           </div>
         </section>

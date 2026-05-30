@@ -72,7 +72,6 @@ export function PatientLoginPage() {
           <div className="auth-links">
             <Link to="/olvide-mi-contrasena">Olvidé mi contraseña</Link>
             <Link to="/crear-cuenta">Crear cuenta</Link>
-            <Link to="/consultar-citas">Consultar citas por cédula</Link>
           </div>
         </form>
       </section>

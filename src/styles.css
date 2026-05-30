@@ -498,6 +498,87 @@ h2 {
   grid-column: span 2;
 }
 
+.date-strip {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.date-strip-days {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(110px, 1fr));
+  gap: 0.65rem;
+}
+
+.date-strip-arrow {
+  width: 42px;
+  height: 42px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text);
+  font-size: 2rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.date-strip-arrow:hover:not(:disabled) {
+  background: #eef5ff;
+}
+
+.date-strip-arrow:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.date-option {
+  min-height: 64px;
+  padding: 0.85rem 1rem;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: white;
+  color: var(--text);
+  cursor: pointer;
+  text-align: center;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.04);
+}
+
+.date-option strong {
+  display: block;
+  font-size: 0.98rem;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.date-option:hover {
+  border-color: rgba(12, 108, 242, 0.35);
+  background: #f8fbff;
+}
+
+.date-option.selected {
+  border-color: #22a35a;
+  background: #eefcf4;
+  color: #126337;
+}
+
+@media (max-width: 760px) {
+  .date-strip {
+    grid-template-columns: auto 1fr auto;
+  }
+
+  .date-strip-days {
+    display: flex;
+    overflow-x: auto;
+    padding-bottom: 0.25rem;
+  }
+
+  .date-option {
+    min-width: 130px;
+  }
+}
+
 .slot-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));

@@ -11,7 +11,6 @@ import { InternalLoginPage } from './pages/InternalLoginPage';
 import { InternalNewAppointmentPage } from './pages/InternalNewAppointmentPage';
 import { InternalProfilePage } from './pages/InternalProfilePage';
 import { NotFoundPage } from './pages/NotFoundPage';
-import { PublicAppointmentsLookupPage } from './pages/PublicAppointmentsLookupPage';
 import { PatientDashboardPage } from './pages/PatientDashboardPage';
 import { PatientLoginPage } from './pages/PatientLoginPage';
 import { PatientProfilePage } from './pages/PatientProfilePage';
@@ -27,7 +26,6 @@ function App() {
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/reservar" element={<PublicBookingPage />} />
-            <Route path="/consultar-citas" element={<PublicAppointmentsLookupPage />} />
             <Route path="/iniciar-sesion" element={<PatientLoginPage />} />
             <Route path="/crear-cuenta" element={<PatientRegisterPage />} />
             <Route path="/olvide-mi-contrasena" element={<ForgotPasswordPage />} />

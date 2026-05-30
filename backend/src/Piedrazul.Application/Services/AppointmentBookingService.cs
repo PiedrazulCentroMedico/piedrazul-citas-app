@@ -27,16 +27,23 @@ public sealed class AppointmentBookingService(
         if (validationErrors.Count > 0)
             return OperationResult<AppointmentResponse>.Validation(validationErrors.ToArray());
 
-        var result = await CreateAppointmentCoreAsync(
-            request.ProviderId, request.AppointmentDate, request.StartTime,
-            request.DocumentNumber, request.FirstName, request.LastName,
-            request.Phone, request.Gender, request.BirthDate, request.Email,
-            request.BookAsGuest, AppointmentChannel.Web, null, externalUserId, createdBy, cancellationToken);
-
-        if (result.Succeeded && result.Data is not null)
-            await _cache.RemoveAsync(CacheKeys.AvailabilitySlots(request.ProviderId, request.AppointmentDate), cancellationToken);
-
-        return result;
+        return await CreateAppointmentCoreAsync(
+            request.ProviderId,
+            request.AppointmentDate,
+            request.StartTime,
+            request.DocumentNumber,
+            request.FirstName,
+            request.LastName,
+            request.Phone,
+            request.Gender,
+            request.BirthDate,
+            request.Email,
+            request.BookAsGuest,
+            AppointmentChannel.Web,
+            null,
+            externalUserId,
+            createdBy,
+            cancellationToken);
     }
 
     public async Task<OperationResult<AppointmentResponse>> CreateInternalAppointmentAsync(InternalCreateAppointmentRequest request, string createdBy, CancellationToken cancellationToken = default)
@@ -47,16 +54,23 @@ public sealed class AppointmentBookingService(
 
         var channel = ParseChannel(request.Channel);
 
-        var result = await CreateAppointmentCoreAsync(
-            request.ProviderId, request.AppointmentDate, request.StartTime,
-            request.DocumentNumber, request.FirstName, request.LastName,
-            request.Phone, request.Gender, request.BirthDate, request.Email,
-            false, channel, request.Notes, null, createdBy, cancellationToken);
-
-        if (result.Succeeded && result.Data is not null)
-            await _cache.RemoveAsync(CacheKeys.AvailabilitySlots(request.ProviderId, request.AppointmentDate), cancellationToken);
-
-        return result;
+        return await CreateAppointmentCoreAsync(
+            request.ProviderId,
+            request.AppointmentDate,
+            request.StartTime,
+            request.DocumentNumber,
+            request.FirstName,
+            request.LastName,
+            request.Phone,
+            request.Gender,
+            request.BirthDate,
+            request.Email,
+            false,
+            channel,
+            request.Notes,
+            null,
+            createdBy,
+            cancellationToken);
     }
 
     private async Task<OperationResult<AppointmentResponse>> CreateAppointmentCoreAsync(
@@ -128,15 +142,17 @@ public sealed class AppointmentBookingService(
 
         var appointment = new Appointment
         {
-            PatientProfile  = patient,
-            Provider        = provider,
-            AppointmentDate = appointmentDate,
-            StartTime       = slotResult.Data.StartTime,
-            EndTime         = slotResult.Data.EndTime,
-            Channel         = channel,
-            Notes           = normalizedNotes,
-            CreatedBy       = createdBy,
-            Status          = AppointmentStatus.Scheduled
+            PatientProfileId = patient.Id,
+            PatientProfile   = patient,
+            ProviderId       = provider.Id,
+            Provider         = provider,
+            AppointmentDate  = appointmentDate,
+            StartTime        = slotResult.Data.StartTime,
+            EndTime          = slotResult.Data.EndTime,
+            Channel          = channel,
+            Notes            = normalizedNotes,
+            CreatedBy        = createdBy,
+            Status           = AppointmentStatus.Scheduled
         };
 
         await _appointments.AddAppointmentAsync(appointment, cancellationToken);
@@ -150,10 +166,35 @@ public sealed class AppointmentBookingService(
             return OperationResult<AppointmentResponse>.Conflict("La franja seleccionada ya fue tomada por otro usuario. Por favor elige otra hora.");
         }
 
-        await _audit.LogAsync("appointment.created", new { appointment.Id, appointment.AppointmentDate, appointment.StartTime, createdBy }, cancellationToken);
-        await _notifications.NotifyAppointmentCreatedAsync(appointment, cancellationToken);
+        try
+        {
+            await _audit.LogAsync(
+                "appointment.created",
+                new
+                {
+                    appointment.Id,
+                    appointment.AppointmentDate,
+                    appointment.StartTime,
+                    createdBy
+                },
+                cancellationToken);
+        }
+        catch
+        {
+            // La auditoría no debe impedir que la cita se confirme.
+        }
+
+        try
+        {
+            await _notifications.NotifyAppointmentCreatedAsync(appointment, cancellationToken);
+        }
+        catch
+        {
+            // La notificación no debe impedir que la cita se confirme.
+        }
 
         return OperationResult<AppointmentResponse>.Success(AppointmentMapper.ToResponse(appointment));
+
     }
 
     private static IReadOnlyList<string> ValidatePublicRequest(PublicAppointmentRequest request)

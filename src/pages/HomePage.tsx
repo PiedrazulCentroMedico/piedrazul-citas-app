@@ -104,9 +104,6 @@ export function HomePage() {
             <Link className="button" to="/reservar">
               Reservar cita
             </Link>
-            <Link className="button button-secondary" to="/consultar-citas">
-              Consultar citas
-            </Link>
             {!hasPatientSession && (
               <Link className="button button-secondary" to="/iniciar-sesion">
                 Iniciar sesión
