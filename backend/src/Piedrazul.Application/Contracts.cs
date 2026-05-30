@@ -104,6 +104,7 @@ public sealed record PatientProfileUpsertRequest
 
 public sealed record AppointmentResponse(
     Guid Id,
+    Guid ProviderId,
     string ProviderName,
     string Specialty,
     string PatientFullName,
@@ -206,6 +207,7 @@ public sealed record PatientPublicLookupResponse(
     string? MaskedPhone,
     string? MaskedEmail,
     int? BirthYear,
+    bool HasUserAccount,
     bool MustRegister,
     DateOnly? LastGuestAppointmentDate,
     string? LastGuestAppointmentType);

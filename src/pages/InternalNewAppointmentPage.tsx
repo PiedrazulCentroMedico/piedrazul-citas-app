@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiRequest } from '../api/http';
 import { useAuth } from '../auth/AuthContext';
 import { PortalTabs } from '../components/PortalTabs';
 import type { AppointmentResponse, AvailabilitySlot, Gender, GenderOption, InternalAppointmentPayload, PatientLookup, ProviderSummary } from '../types';
-import { formatDateLabel, sanitizeNameInput, validatePatientForm } from '../utils/validators';
+import { formatDateLabel, hasSettingsAccess, sanitizeNameInput, validatePatientForm } from '../utils/validators';
 
 const initialForm = {
   providerId: '',
@@ -21,12 +21,6 @@ const initialForm = {
   channel: 'WhatsApp',
 };
 
-const tabs = [
-  { to: '/portal/interno/citas', label: 'Listado de citas' },
-  { to: '/portal/interno/nueva-cita', label: 'Nueva cita' },
-  { to: '/portal/interno/usuarios', label: 'Usuarios' },
-];
-
 export function InternalNewAppointmentPage() {
   const navigate = useNavigate();
   const { session } = useAuth();
@@ -38,6 +32,17 @@ export function InternalNewAppointmentPage() {
   const [appointmentMessage, setAppointmentMessage] = useState<string | null>(null);
   const [success, setSuccess] = useState<AppointmentResponse | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, boolean>>({});
+
+  const tabs = useMemo(() => {
+    const items = [
+      { to: '/portal/interno/citas', label: 'Listado de citas' },
+      { to: '/portal/interno/nueva-cita', label: 'Nueva cita' },
+    ];
+    if (session?.roles.includes('Admin')) items.push({ to: '/portal/interno/usuarios', label: 'Usuarios' });
+    if (hasSettingsAccess(session?.roles ?? [])) items.push({ to: '/portal/interno/configuracion', label: 'Configuración' });
+    return items;
+  }, [session?.roles]);
 
   useEffect(() => {
     if (!session) return;
@@ -66,6 +71,7 @@ export function InternalNewAppointmentPage() {
     }));
     setPatientMessage(null);
     setAppointmentMessage(null);
+    setFieldErrors((current) => ({ ...current, [field]: false }));
   };
 
   const resetForNewAppointment = () => {
@@ -109,10 +115,23 @@ export function InternalNewAppointmentPage() {
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
+    setFieldErrors({});
     if (!form.gender) {
+      setFieldErrors({ gender: true });
       setPatientMessage('Selecciona el género del paciente para continuar.');
       return;
     }
+
+    const nextErrors: Record<string, boolean> = {};
+    if (!/^\d{5,20}$/.test(form.documentNumber.trim())) nextErrors.documentNumber = true;
+    if (form.firstName.trim().length < 2) nextErrors.firstName = true;
+    if (form.lastName.trim().length < 2) nextErrors.lastName = true;
+    if (!/^\d{10}$/.test(form.phone.trim())) nextErrors.phone = true;
+    if (form.email.trim() && !/^\S+@\S+\.\S+$/.test(form.email.trim())) nextErrors.email = true;
+    if (!form.providerId) nextErrors.providerId = true;
+    if (!form.appointmentDate) nextErrors.appointmentDate = true;
+    if (!form.startTime) nextErrors.startTime = true;
+    if (form.notes.length > 500) nextErrors.notes = true;
 
     const errors = validatePatientForm(form);
     if (!form.providerId) errors.push('Selecciona un profesional.');
@@ -120,7 +139,8 @@ export function InternalNewAppointmentPage() {
     if (!form.startTime) errors.push('Selecciona una franja horaria.');
     if (form.notes.length > 500) errors.push('Las observaciones no pueden superar 500 caracteres.');
 
-    if (errors.length > 0) {
+    if (errors.length > 0 || Object.values(nextErrors).some(Boolean)) {
+      setFieldErrors(nextErrors);
       const first = errors[0];
       if (first.includes('documento') || first.includes('nombres') || first.includes('apellidos') || first.includes('celular') || first.includes('correo')) {
         setPatientMessage(first);
@@ -176,7 +196,7 @@ export function InternalNewAppointmentPage() {
           <div className="form-grid internal-filter-grid">
             <label>
               Documento
-              <input inputMode="numeric" maxLength={20} value={form.documentNumber} onChange={(event) => handleChange('documentNumber', event.target.value.replace(/\D/g, ''))} />
+              <input className={fieldErrors.documentNumber ? 'input-error' : ''} inputMode="numeric" maxLength={20} value={form.documentNumber} onChange={(event) => handleChange('documentNumber', event.target.value.replace(/\D/g, ''))} />
             </label>
             <div className="inline-actions end align-end">
               <button type="button" className="button button-secondary" onClick={() => void lookupPatient()}>
@@ -216,19 +236,19 @@ export function InternalNewAppointmentPage() {
           <div className="form-grid">
             <label>
               Nombres
-              <input maxLength={80} value={form.firstName} onChange={(event) => handleChange('firstName', sanitizeNameInput(event.target.value))} />
+              <input className={fieldErrors.firstName ? 'input-error' : ''} maxLength={80} value={form.firstName} onChange={(event) => handleChange('firstName', sanitizeNameInput(event.target.value))} />
             </label>
             <label>
               Apellidos
-              <input maxLength={80} value={form.lastName} onChange={(event) => handleChange('lastName', sanitizeNameInput(event.target.value))} />
+              <input className={fieldErrors.lastName ? 'input-error' : ''} maxLength={80} value={form.lastName} onChange={(event) => handleChange('lastName', sanitizeNameInput(event.target.value))} />
             </label>
             <label>
               Celular
-              <input inputMode="numeric" maxLength={15} value={form.phone} onChange={(event) => handleChange('phone', event.target.value.replace(/\D/g, ''))} />
+              <input className={fieldErrors.phone ? 'input-error' : ''} inputMode="numeric" maxLength={15} value={form.phone} onChange={(event) => handleChange('phone', event.target.value.replace(/\D/g, ''))} />
             </label>
             <label>
               Género
-              <select value={form.gender} onChange={(event) => handleChange('gender', event.target.value)}>
+              <select className={fieldErrors.gender ? 'input-error' : ''} value={form.gender} onChange={(event) => handleChange('gender', event.target.value)}>
                 <option value="">Seleccionar género</option>
                 <option value="Female">Mujer</option>
                 <option value="Male">Hombre</option>
@@ -237,11 +257,11 @@ export function InternalNewAppointmentPage() {
             </label>
             <label>
               Fecha de nacimiento
-              <input type="date" value={form.birthDate} onChange={(event) => handleChange('birthDate', event.target.value)} />
+              <input className={fieldErrors.birthDate ? 'input-error' : ''} type="date" value={form.birthDate} onChange={(event) => handleChange('birthDate', event.target.value)} />
             </label>
             <label>
               Correo electrónico
-              <input type="email" maxLength={150} value={form.email} onChange={(event) => handleChange('email', event.target.value)} />
+              <input className={fieldErrors.email ? 'input-error' : ''} type="email" maxLength={150} value={form.email} onChange={(event) => handleChange('email', event.target.value)} />
             </label>
           </div>
 
@@ -253,7 +273,7 @@ export function InternalNewAppointmentPage() {
           <div className="form-grid">
             <label className="span-two">
               Profesional
-              <select value={form.providerId} onChange={(event) => handleChange('providerId', event.target.value)}>
+              <select className={fieldErrors.providerId ? 'input-error' : ''} value={form.providerId} onChange={(event) => handleChange('providerId', event.target.value)}>
                 <option value="">Selecciona una opción</option>
                 {providers.map((provider) => (
                   <option key={provider.id} value={provider.id}>{provider.specialty} - {provider.fullName}</option>
@@ -262,7 +282,7 @@ export function InternalNewAppointmentPage() {
             </label>
             <label>
               Fecha
-              <input type="date" value={form.appointmentDate} onChange={(event) => handleChange('appointmentDate', event.target.value)} />
+              <input className={fieldErrors.appointmentDate ? 'input-error' : ''} type="date" value={form.appointmentDate} onChange={(event) => handleChange('appointmentDate', event.target.value)} />
             </label>
             <label>
               Canal
@@ -274,7 +294,7 @@ export function InternalNewAppointmentPage() {
             </label>
             <label className="span-two">
               Observaciones
-              <textarea rows={4} maxLength={500} value={form.notes} onChange={(event) => handleChange('notes', event.target.value)} />
+              <textarea className={fieldErrors.notes ? 'input-error' : ''} rows={4} maxLength={500} value={form.notes} onChange={(event) => handleChange('notes', event.target.value)} />
             </label>
           </div>
 

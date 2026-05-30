@@ -66,7 +66,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.Property(x => x.Channel).HasConversion<string>().HasMaxLength(20).IsRequired();
             entity.Property(x => x.Notes).HasMaxLength(500);
             entity.Property(x => x.CreatedBy).HasMaxLength(120).IsRequired();
-            entity.HasIndex(x => new { x.ProviderId, x.AppointmentDate, x.StartTime }).IsUnique();
+            entity.HasIndex(x => new { x.ProviderId, x.AppointmentDate, x.StartTime })
+                .IsUnique()
+                .HasFilter("\"Status\" = 'Scheduled'");
             entity.HasOne(x => x.Provider)
                 .WithMany(x => x.Appointments)
                 .HasForeignKey(x => x.ProviderId)

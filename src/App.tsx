@@ -1,6 +1,7 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from './auth/AuthContext';
 import { AppLayout } from './components/AppLayout';
+import { AccessibilityTools } from './components/AccessibilityTools';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { AdminSchedulesPage } from './pages/AdminSchedulesPage';
 import { AdminUsersPage } from './pages/AdminUsersPage';
@@ -41,6 +42,7 @@ function App() {
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </AppLayout>
+        <AccessibilityTools />
       </AuthProvider>
     </BrowserRouter>
   );

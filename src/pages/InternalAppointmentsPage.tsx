@@ -17,6 +17,27 @@ function downloadBlob(blob: Blob, fileName: string) {
   window.URL.revokeObjectURL(url);
 }
 
+function printBlob(blob: Blob) {
+  const url = window.URL.createObjectURL(blob);
+  const frame = document.createElement('iframe');
+  frame.style.position = 'fixed';
+  frame.style.right = '0';
+  frame.style.bottom = '0';
+  frame.style.width = '0';
+  frame.style.height = '0';
+  frame.style.border = '0';
+  frame.src = url;
+  document.body.appendChild(frame);
+  frame.onload = () => {
+    frame.contentWindow?.focus();
+    frame.contentWindow?.print();
+    window.setTimeout(() => {
+      document.body.removeChild(frame);
+      window.URL.revokeObjectURL(url);
+    }, 1000);
+  };
+}
+
 function escapeCsvValue(value: string) {
   if (/[",\n]/.test(value)) {
     return `"${value.replace(/"/g, '""')}"`;
@@ -69,6 +90,121 @@ function buildExcelTable(providerName: string, specialty: string, label: string,
   </html>`;
 }
 
+function toLocalDateInputValue(dateValue: Date) {
+  const year = dateValue.getFullYear();
+  const month = String(dateValue.getMonth() + 1).padStart(2, '0');
+  const day = String(dateValue.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function addDays(dateValue: Date, days: number) {
+  const copy = new Date(dateValue);
+  copy.setDate(copy.getDate() + days);
+  return copy;
+}
+
+function formatShortDay(dateValue: Date) {
+  return new Intl.DateTimeFormat('es-CO', {
+    weekday: 'short',
+    day: '2-digit',
+    month: 'short',
+  }).format(dateValue);
+}
+
+function buildDateOptions(offset: number) {
+  const today = new Date();
+  const startDate = addDays(today, offset);
+
+  return Array.from({ length: 7 }, (_, index) => {
+    const nextDate = addDays(startDate, index);
+    return {
+      value: toLocalDateInputValue(nextDate),
+      label: formatShortDay(nextDate),
+    };
+  });
+}
+
+function pdfHexText(value: string) {
+  const normalized = value.normalize('NFC');
+  let hex = 'FEFF';
+  for (let index = 0; index < normalized.length; index += 1) {
+    hex += normalized.charCodeAt(index).toString(16).padStart(4, '0').toUpperCase();
+  }
+  return `<${hex}>`;
+}
+
+function buildSimplePdf(providerName: string, specialty: string, label: string, items: AppointmentResponse[]) {
+  const text = (value: string, x: number, y: number, size = 10, font = 'F1') =>
+    `BT /${font} ${size} Tf ${x} ${y} Td ${pdfHexText(value)} Tj ET`;
+  const rect = (x: number, y: number, width: number, height: number, fill = '0.96 0.98 1 rg') =>
+    `q ${fill} ${x} ${y} ${width} ${height} re f Q`;
+  const stroke = (x: number, y: number, width: number, height: number) =>
+    `q 0.82 0.87 0.93 RG ${x} ${y} ${width} ${height} re S Q`;
+
+  const commands: string[] = [
+    rect(0, 0, 595, 842, '1 1 1 rg'),
+    rect(0, 756, 595, 86, '0.92 0.96 1 rg'),
+    rect(36, 704, 523, 48, '0.98 0.99 1 rg'),
+    text('Piedrazul Centro Médico', 40, 800, 18, 'F2'),
+    text('Listado de citas médicas', 40, 778, 12, 'F1'),
+    text(`Profesional: ${providerName}`.slice(0, 80), 52, 734, 10, 'F2'),
+    text(`Especialidad: ${specialty}`.slice(0, 80), 52, 716, 10),
+    text(`Fecha o rango: ${label}`, 330, 734, 10),
+    text(`Total de citas: ${items.length}`, 330, 716, 10, 'F2'),
+    rect(36, 670, 523, 28, '0.05 0.42 0.95 rg'),
+    text('Fecha', 44, 680, 8, 'F2'),
+    text('Hora', 104, 680, 8, 'F2'),
+    text('Paciente', 158, 680, 8, 'F2'),
+    text('Documento', 292, 680, 8, 'F2'),
+    text('Celular', 362, 680, 8, 'F2'),
+    text('Estado', 432, 680, 8, 'F2'),
+    text('Canal', 505, 680, 8, 'F2'),
+  ];
+
+  let y = 646;
+  items.slice(0, 24).forEach((appointment, index) => {
+    if (index % 2 === 0) commands.push(rect(36, y - 7, 523, 24, '0.98 0.99 1 rg'));
+    commands.push(stroke(36, y - 7, 523, 24));
+    commands.push(text(String(appointment.appointmentDate), 44, y, 8));
+    commands.push(text(`${appointment.startTime}-${appointment.endTime}`, 104, y, 8));
+    commands.push(text(appointment.patientFullName.slice(0, 24), 158, y, 8));
+    commands.push(text(appointment.documentNumber, 292, y, 8));
+    commands.push(text(appointment.phone, 362, y, 8));
+    commands.push(text(translateStatusLabel(appointment.status), 432, y, 8));
+    commands.push(text(appointment.channel.slice(0, 12), 505, y, 8));
+    y -= 24;
+  });
+
+  if (items.length > 24) {
+    commands.push(text(`Se muestran 24 de ${items.length} citas. Exporta CSV o Excel para ver el listado completo.`, 40, 48, 9));
+  }
+  commands.push(text(`Generado: ${new Date().toLocaleString('es-CO')}`, 40, 28, 8));
+
+  const content = commands.join('\n');
+  const objects = [
+    '1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj',
+    '2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj',
+    '3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R /F2 6 0 R >> >> /Contents 5 0 R >> endobj',
+    '4 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj',
+    `5 0 obj << /Length ${new TextEncoder().encode(content).length} >> stream\n${content}\nendstream endobj`,
+    '6 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >> endobj',
+  ];
+
+  let body = '%PDF-1.4\n';
+  const offsets = [0];
+  objects.forEach((object) => {
+    offsets.push(body.length);
+    body += `${object}\n`;
+  });
+  const xrefOffset = body.length;
+  body += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  offsets.slice(1).forEach((offset) => {
+    body += `${String(offset).padStart(10, '0')} 00000 n \n`;
+  });
+  body += `trailer << /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
+  return new Blob([body], { type: 'application/pdf' });
+}
+
 function getDatesInRange(start: string, end: string) {
   const dates: string[] = [];
   const cursor = new Date(`${start}T00:00:00`);
@@ -86,10 +222,11 @@ export function InternalAppointmentsPage() {
   const canManageUsers = session?.roles.includes('Admin') ?? false;
   const [providers, setProviders] = useState<ProviderSummary[]>([]);
   const [providerId, setProviderId] = useState('');
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(toLocalDateInputValue(new Date()));
+  const [dateOffset, setDateOffset] = useState(0);
   const [useDateRange, setUseDateRange] = useState(false);
-  const [rangeStart, setRangeStart] = useState(new Date().toISOString().slice(0, 10));
-  const [rangeEnd, setRangeEnd] = useState(new Date().toISOString().slice(0, 10));
+  const [rangeStart, setRangeStart] = useState(toLocalDateInputValue(new Date()));
+  const [rangeEnd, setRangeEnd] = useState(toLocalDateInputValue(new Date()));
   const [results, setResults] = useState<AppointmentListResponse[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -120,6 +257,7 @@ export function InternalAppointmentsPage() {
   const activeResults = useMemo(() => [...results].sort((a, b) => a.appointmentDate.localeCompare(b.appointmentDate)), [results]);
   const combinedItems = useMemo(() => activeResults.flatMap((r) => r.items).sort((a, b) => `${a.appointmentDate}${a.startTime}`.localeCompare(`${b.appointmentDate}${b.startTime}`)), [activeResults]);
   const selectedProvider = useMemo(() => providers.find((provider) => provider.id === providerId) ?? null, [providerId, providers]);
+  const dateOptions = useMemo(() => buildDateOptions(dateOffset), [dateOffset]);
 
   const hydrateDraftStatuses = (items: AppointmentResponse[]) => {
     setDraftStatuses(Object.fromEntries(items.map((appointment) => [appointment.id, translateStatusLabel(appointment.status) as AppointmentStatusValue])));
@@ -154,17 +292,41 @@ export function InternalAppointmentsPage() {
     if (providerId) void searchAppointments();
   }, [providerId]);
 
-  const downloadPdf = async () => {
-    if (!providerId) return;
+  const buildCurrentPdfBlob = async () => {
+    if (!providerId) return null;
     if (useDateRange) {
-      setMessage('La descarga en PDF está disponible solo para una fecha. Para rangos usa CSV o Excel.');
-      return;
+      if (combinedItems.length === 0) {
+        setMessage('Primero consulta las citas para exportarlas en PDF.');
+        return null;
+      }
+      const label = `${rangeStart} a ${rangeEnd}`;
+      return buildSimplePdf(selectedProvider?.fullName ?? 'Profesional', selectedProvider?.specialty ?? '', label, combinedItems);
     }
+
+    if (combinedItems.length > 0) {
+      return buildSimplePdf(selectedProvider?.fullName ?? 'Profesional', selectedProvider?.specialty ?? '', date, combinedItems);
+    }
+
+    return apiRequest<Blob>(`/api/internal/appointments/export/pdf?providerId=${providerId}&date=${date}`, session, { method: 'GET', responseType: 'blob' });
+  };
+
+  const downloadPdf = async () => {
     try {
-      const blob = await apiRequest<Blob>(`/api/internal/appointments/export/pdf?providerId=${providerId}&date=${date}`, session, { method: 'GET', responseType: 'blob' });
-      downloadBlob(blob, `citas-${date}.pdf`);
+      const blob = await buildCurrentPdfBlob();
+      if (!blob) return;
+      downloadBlob(blob, useDateRange ? `citas-${rangeStart}-a-${rangeEnd}.pdf` : `citas-${date}.pdf`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'No fue posible descargar el PDF.');
+    }
+  };
+
+  const printPdf = async () => {
+    try {
+      const blob = await buildCurrentPdfBlob();
+      if (!blob) return;
+      printBlob(blob);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'No fue posible imprimir el PDF.');
     }
   };
 
@@ -251,10 +413,21 @@ export function InternalAppointmentsPage() {
           </label>
 
           {!useDateRange ? (
-            <label>
-              Fecha
-              <input type="date" value={date} onChange={(event) => setDate(event.target.value)} />
-            </label>
+            <div className="span-two stack-sm">
+              <strong>Fecha</strong>
+              <div className="date-strip" aria-label="Seleccionar fecha de consulta">
+                <button type="button" className="date-strip-arrow" onClick={() => setDateOffset((current) => Math.max(0, current - 7))} disabled={dateOffset === 0} aria-label="Ver semana anterior">‹</button>
+                <div className="date-strip-days">
+                  {dateOptions.map((dateOption) => (
+                    <button key={dateOption.value} type="button" className={`date-option ${date === dateOption.value ? 'selected' : ''}`} onClick={() => setDate(dateOption.value)}>
+                      {dateOption.label.split(' ').map((part) => (<strong key={part}>{part}</strong>))}
+                    </button>
+                  ))}
+                </div>
+                <button type="button" className="date-strip-arrow" onClick={() => setDateOffset((current) => current + 7)} aria-label="Ver semana siguiente">›</button>
+              </div>
+              <p className="muted-text">Consultando citas para {formatDateLabel(date)}.</p>
+            </div>
           ) : (
             <>
               <label>
@@ -270,7 +443,8 @@ export function InternalAppointmentsPage() {
 
           <div className="inline-actions end wrap">
             <button type="button" className="button" onClick={() => void searchAppointments()}>Buscar</button>
-            <button type="button" className="button button-secondary" onClick={() => void downloadPdf()} disabled={useDateRange}>Descargar PDF</button>
+            <button type="button" className="button button-secondary" onClick={() => void downloadPdf()}>Descargar PDF</button>
+            <button type="button" className="button button-secondary" onClick={() => void printPdf()}>Imprimir PDF</button>
             <button type="button" className="button button-secondary" onClick={downloadCsv}>CSV</button>
             <button type="button" className="button button-secondary" onClick={downloadExcel}>Excel</button>
           </div>

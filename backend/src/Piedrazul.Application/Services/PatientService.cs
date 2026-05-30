@@ -21,14 +21,14 @@ public sealed class PatientService(IPatientRepository patientRepository, IAppoin
 
     public async Task<OperationResult<PatientProfileResponse>> UpsertMyProfileAsync(string externalUserId, string? email, PatientProfileUpsertRequest request, CancellationToken cancellationToken = default)
     {
-        var errors = PatientInputValidator.ValidateBasicPatientData(request.DocumentNumber, request.FirstName, request.LastName, request.Phone, request.Email ?? email).ToList();
+        var errors = PatientInputValidator.ValidateBasicPatientData(request.DocumentNumber, request.FirstName, request.LastName, request.Phone, request.Email).ToList();
         if (errors.Count > 0)
         {
             return OperationResult<PatientProfileResponse>.Validation(errors.ToArray());
         }
 
         var normalizedDocument = PatientInputValidator.Normalize(request.DocumentNumber);
-        var normalizedEmail = PatientInputValidator.Normalize(request.Email ?? email);
+        var normalizedEmail = PatientInputValidator.Normalize(request.Email);
 
         var patient = await _patients.GetByExternalUserIdAsync(externalUserId, cancellationToken)
                      ?? await _patients.GetByDocumentAsync(normalizedDocument, cancellationToken);
@@ -77,6 +77,17 @@ public sealed class PatientService(IPatientRepository patientRepository, IAppoin
         return OperationResult<IReadOnlyList<AppointmentResponse>>.Success(appointments);
     }
 
+
+    private static string? ToPublicEmail(string? email)
+    {
+        if (string.IsNullOrWhiteSpace(email)) return null;
+        var normalized = email.Trim();
+        return normalized.Equals("paciente.demo@piedrazul.test", StringComparison.OrdinalIgnoreCase)
+            || normalized.EndsWith("@piedrazul.local", StringComparison.OrdinalIgnoreCase)
+            ? null
+            : normalized;
+    }
+
     private static PatientProfileResponse ToResponse(PatientProfile patient)
     {
         return new PatientProfileResponse(
@@ -87,7 +98,7 @@ public sealed class PatientService(IPatientRepository patientRepository, IAppoin
             patient.Phone,
             patient.Gender,
             patient.BirthDate,
-            patient.Email,
+            ToPublicEmail(patient.Email),
             patient.IsGuest);
     }
 }

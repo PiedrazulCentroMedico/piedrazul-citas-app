@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { apiRequest } from '../api/http';
 import { useAuth } from '../auth/AuthContext';
 import type { AppointmentResponse, AvailabilitySlot, CaptchaChallenge, Gender, GenderOption, PatientProfile, PatientPublicLookup, ProviderSummary, PublicAppointmentPayload } from '../types';
@@ -50,6 +50,15 @@ function createCaptchaChallenge(): CaptchaChallenge {
   return { left, right, answer: '' };
 }
 
+function looksLikeDemoEmail(value?: string | null) {
+  if (!value) return false;
+  return /(^paciente\.demo@piedrazul\.test$|@piedrazul\.local$)/i.test(value.trim());
+}
+
+function cleanOptionalEmail(value?: string | null) {
+  return looksLikeDemoEmail(value) ? '' : (value ?? '');
+}
+
 const initialForm = {
   providerId: '',
   appointmentDate: toLocalDateInputValue(new Date()),
@@ -65,6 +74,7 @@ const initialForm = {
 
 export function PublicBookingPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { session } = useAuth();
   const isPatientSession = session?.roles.includes('Patient') ?? false;
   const [form, setForm] = useState(initialForm);
@@ -80,6 +90,8 @@ export function PublicBookingPage() {
   const [patientLookup, setPatientLookup] = useState<PatientPublicLookup | null>(null);
   const [guestLimitModal, setGuestLimitModal] = useState<PatientPublicLookup | null>(null);
   const [captcha, setCaptcha] = useState<CaptchaChallenge>(createCaptchaChallenge);
+  const [reprogramTarget, setReprogramTarget] = useState<AppointmentResponse | null>(null);
+  const [registeredPatientModal, setRegisteredPatientModal] = useState<PatientPublicLookup | null>(null);
 
   useEffect(() => {
     apiRequest<ProviderSummary[]>('/api/public/providers', null)
@@ -106,11 +118,40 @@ export function PublicBookingPage() {
           phone: profile.phone,
           gender: profile.gender,
           birthDate: profile.birthDate ?? '',
-          email: profile.email ?? '',
+          email: cleanOptionalEmail(profile.email),
         }));
       })
       .catch(() => undefined);
   }, [isPatientSession, session]);
+
+  useEffect(() => {
+    const appointmentId = searchParams.get('reprogramar');
+    if (!appointmentId || !isPatientSession || !session) {
+      setReprogramTarget(null);
+      return;
+    }
+
+    apiRequest<AppointmentResponse[]>('/api/patient/appointments', session)
+      .then((items) => {
+        const target = items.find((appointment) => appointment.id === appointmentId) ?? null;
+        if (!target) {
+          setMessage('No encontramos la cita que quieres reprogramar.');
+          return;
+        }
+        if (target.status !== 'Programada' && target.status !== 'Scheduled') {
+          setMessage('Esta cita ya no está programada y no se puede reprogramar.');
+          return;
+        }
+        setReprogramTarget(target);
+        setForm((current) => ({
+          ...current,
+          providerId: target.providerId,
+          appointmentDate: target.appointmentDate,
+          startTime: '',
+        }));
+      })
+      .catch((error: Error) => setMessage(error.message));
+  }, [isPatientSession, searchParams, session]);
 
   useEffect(() => {
     if (!form.providerId || !form.appointmentDate) {
@@ -200,6 +241,11 @@ export function PublicBookingPage() {
       setDocumentVerified(true);
       setPatientLookup(lookup.exists ? lookup : null);
 
+      if (lookup.hasUserAccount) {
+        setRegisteredPatientModal(lookup);
+        return;
+      }
+
       if (lookup.mustRegister) {
         setGuestLimitModal(lookup);
       } 
@@ -265,17 +311,26 @@ export function PublicBookingPage() {
       phone: form.phone,
       gender: form.gender as Gender,
       birthDate: form.birthDate || null,
-      email: form.email || null,
+      email: cleanOptionalEmail(form.email) || null,
       bookAsGuest,
     };
 
     try {
       setSubmitting(true);
-      const path = !bookAsGuest && isPatientSession ? '/api/patient/appointments' : '/api/public/appointments';
-      const result = await apiRequest<AppointmentResponse>(path, session, {
-        method: 'POST',
-        body: payload,
-      });
+      const result = reprogramTarget && isPatientSession
+        ? await apiRequest<AppointmentResponse>(`/api/patient/appointments/${reprogramTarget.id}/reschedule`, session, {
+          method: 'PUT',
+          body: {
+            appointmentId: reprogramTarget.id,
+            newDate: form.appointmentDate,
+            newStartTime: form.startTime,
+            reason: 'Reprogramación solicitada por paciente desde el portal web.',
+          },
+        })
+        : await apiRequest<AppointmentResponse>(!bookAsGuest && isPatientSession ? '/api/patient/appointments' : '/api/public/appointments', session, {
+          method: 'POST',
+          body: payload,
+        });
       setSuccess(result);
       setCaptcha(createCaptchaChallenge());
       setForm((current) => ({ ...current, startTime: '' }));
@@ -306,8 +361,8 @@ export function PublicBookingPage() {
         <div className="section-header between wrap">
           <div className="stack-sm">
             <span className="eyebrow">Reserva de citas</span>
-            <h1>Agenda tu cita en línea</h1>
-            <p className="muted-text">Primero verifica la cédula, luego completa los datos y confirma tu reserva.</p>
+            <h1>{reprogramTarget ? 'Reprograma tu cita' : 'Agenda tu cita en línea'}</h1>
+            <p className="muted-text">{reprogramTarget ? 'Selecciona una nueva fecha y una nueva franja disponible. No se creará una cita adicional.' : 'Primero verifica la cédula, luego completa los datos y confirma tu reserva.'}</p>
           </div>
         </div>
       </section>
@@ -354,45 +409,59 @@ export function PublicBookingPage() {
         )}
 
         <section className="section-card stack-md">
-          <h2>{isPatientSession ? 'Paso 1. Completa o confirma tus datos' : 'Paso 2. Completa tus datos'}</h2>
-          <div className="form-grid">
-            <label>
-              Documento
-              <input inputMode="numeric" maxLength={20} value={form.documentNumber} disabled={!isPatientSession} onChange={(event) => handleChange('documentNumber', event.target.value.replace(/\D/g, ''))} />
-            </label>
-            <label>
-              Nombres
-              <input maxLength={80} value={form.firstName} disabled={!isPatientSession && !documentVerified} onChange={(event) => handleChange('firstName', sanitizeNameInput(event.target.value))} />
-            </label>
-            <label>
-              Apellidos
-              <input maxLength={80} value={form.lastName} disabled={!isPatientSession && !documentVerified} onChange={(event) => handleChange('lastName', sanitizeNameInput(event.target.value))} />
-            </label>
-            <label>
-              Celular
-              <input inputMode="numeric" maxLength={15} value={form.phone} disabled={!isPatientSession && !documentVerified} onChange={(event) => handleChange('phone', event.target.value.replace(/\D/g, ''))} />
-              {!isPatientSession && patientLookup?.maskedPhone && <small className="muted-text">Registrado: {patientLookup.maskedPhone}</small>}
-            </label>
-            <label>
-              Género
-              <select value={form.gender} disabled={!isPatientSession && !documentVerified} onChange={(event) => handleChange('gender', event.target.value)}>
-                <option value="">Seleccionar género</option>
-                <option value="Female">Mujer</option>
-                <option value="Male">Hombre</option>
-                <option value="Other">Otro</option>
-              </select>
-            </label>
-            <label>
-              Fecha de nacimiento
-              <input type="date" value={form.birthDate} disabled={!isPatientSession && !documentVerified} onChange={(event) => handleChange('birthDate', event.target.value)} />
-              {!isPatientSession && patientLookup?.birthYear && <small className="muted-text">Año registrado: {patientLookup.birthYear}</small>}
-            </label>
-            <label className="span-two">
-              Correo electrónico (opcional)
-              <input type="email" maxLength={150} value={form.email} disabled={!isPatientSession && !documentVerified} onChange={(event) => handleChange('email', event.target.value)} />
-              {!isPatientSession && patientLookup?.maskedEmail && <small className="muted-text">Registrado: {patientLookup.maskedEmail}</small>}
-            </label>
-          </div>
+          <h2>{isPatientSession ? 'Paso 1. Confirma tus datos' : 'Paso 2. Completa tus datos'}</h2>
+          {isPatientSession ? (
+            <>
+              <div className="patient-confirm-row">
+                <div><span>Documento</span><strong>{form.documentNumber || 'No registrado'}</strong></div>
+                <div><span>Nombre</span><strong>{`${form.firstName} ${form.lastName}`.trim() || 'No registrado'}</strong></div>
+                <div><span>Celular</span><strong>{form.phone || 'No registrado'}</strong></div>
+                <div><span>Género</span><strong>{form.gender === 'Male' ? 'Hombre' : form.gender === 'Female' ? 'Mujer' : form.gender === 'Other' ? 'Otro' : 'No registrado'}</strong></div>
+                <div><span>Fecha de nacimiento</span><strong>{form.birthDate || 'No registrada'}</strong></div>
+                <div><span>Correo</span><strong>{cleanOptionalEmail(form.email) || 'No registrado'}</strong></div>
+              </div>
+              <div className="feedback-card warning">Si algún dato está mal, modifícalo desde <Link to="/portal/paciente/perfil"><strong>editar perfil</strong></Link> antes de confirmar la reserva.</div>
+            </>
+          ) : (
+            <div className="form-grid">
+              <label>
+                Documento
+                <input inputMode="numeric" maxLength={20} value={form.documentNumber} disabled onChange={(event) => handleChange('documentNumber', event.target.value.replace(/\D/g, ''))} />
+              </label>
+              <label>
+                Nombres
+                <input maxLength={80} value={form.firstName} disabled={!documentVerified} onChange={(event) => handleChange('firstName', sanitizeNameInput(event.target.value))} />
+              </label>
+              <label>
+                Apellidos
+                <input maxLength={80} value={form.lastName} disabled={!documentVerified} onChange={(event) => handleChange('lastName', sanitizeNameInput(event.target.value))} />
+              </label>
+              <label>
+                Celular
+                <input inputMode="numeric" maxLength={15} value={form.phone} disabled={!documentVerified} onChange={(event) => handleChange('phone', event.target.value.replace(/\D/g, ''))} />
+                {patientLookup?.maskedPhone && <small className="muted-text">Registrado: {patientLookup.maskedPhone}</small>}
+              </label>
+              <label>
+                Género
+                <select value={form.gender} disabled={!documentVerified} onChange={(event) => handleChange('gender', event.target.value)}>
+                  <option value="">Seleccionar género</option>
+                  <option value="Female">Mujer</option>
+                  <option value="Male">Hombre</option>
+                  <option value="Other">Otro</option>
+                </select>
+              </label>
+              <label>
+                Fecha de nacimiento
+                <input type="date" value={form.birthDate} disabled={!documentVerified} onChange={(event) => handleChange('birthDate', event.target.value)} />
+                {patientLookup?.birthYear && <small className="muted-text">Año registrado: {patientLookup.birthYear}</small>}
+              </label>
+              <label className="span-two">
+                Correo electrónico (opcional)
+                <input type="email" maxLength={150} value={form.email} disabled={!documentVerified} onChange={(event) => handleChange('email', event.target.value)} />
+                {patientLookup?.maskedEmail && <small className="muted-text">Registrado: {patientLookup.maskedEmail}</small>}
+              </label>
+            </div>
+          )}
         </section>
 
         <section className="section-card stack-md">
@@ -401,7 +470,7 @@ export function PublicBookingPage() {
           <div className="form-grid">
             <label>
               Profesional
-              <select value={form.providerId} onChange={(event) => handleChange('providerId', event.target.value)}>
+              <select value={form.providerId} disabled={Boolean(reprogramTarget)} onChange={(event) => handleChange('providerId', event.target.value)}>
                 <option value="">Selecciona una opción</option>
                 {providers.map((provider) => (
                   <option key={provider.id} value={provider.id}>{provider.specialty} - {provider.fullName}</option>
@@ -491,7 +560,7 @@ export function PublicBookingPage() {
           {message && <div className="feedback-card error">{message}</div>}
           <div className="inline-actions end">
             <button type="submit" className="button" disabled={submitting}>
-              {submitting ? 'Confirmando reserva...' : 'Confirmar reserva'}
+              {submitting ? 'Guardando...' : reprogramTarget ? 'Confirmar reprogramación' : 'Confirmar reserva'}
             </button>
           </div>
         </section>
@@ -500,8 +569,8 @@ export function PublicBookingPage() {
       {success && (
       <div className="modal-backdrop" role="dialog" aria-modal="true">
         <section className="modal-card stack-md">
-          <span className="eyebrow">Reserva confirmada</span>
-          <h2>Tu cita fue registrada correctamente</h2>
+          <span className="eyebrow">{reprogramTarget ? 'Cita reprogramada' : 'Reserva confirmada'}</span>
+          <h2>{reprogramTarget ? 'Tu cita fue reprogramada correctamente' : 'Tu cita fue registrada correctamente'}</h2>
 
           <div className="summary-grid">
             <div><span>Paciente</span><strong>{success.patientFullName}</strong></div>
@@ -530,6 +599,24 @@ export function PublicBookingPage() {
               }}
             >
               {isPatientSession ? 'Ir a mis citas' : 'Ir al inicio'}
+            </button>
+          </div>
+        </section>
+      </div>
+    )}
+
+    {registeredPatientModal && (
+      <div className="modal-backdrop" role="dialog" aria-modal="true">
+        <section className="modal-card stack-md">
+          <span className="eyebrow">Cuenta encontrada</span>
+          <h2>Esta cédula ya tiene una cuenta registrada</h2>
+          <p className="muted-text">Para proteger tus datos e historial de citas, inicia sesión antes de reservar.</p>
+          <div className="inline-actions end wrap">
+            <button type="button" className="button" onClick={() => navigate('/iniciar-sesion', { state: { documentNumber: form.documentNumber, from: { pathname: '/reservar' } } })}>
+              Iniciar sesión
+            </button>
+            <button type="button" className="button button-secondary" onClick={() => setRegisteredPatientModal(null)}>
+              Volver
             </button>
           </div>
         </section>

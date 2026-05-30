@@ -40,6 +40,7 @@ export interface AvailabilitySlot {
 
 export interface AppointmentResponse {
   id: string;
+  providerId: string;
   providerName: string;
   specialty: string;
   patientFullName: string;
@@ -125,6 +126,7 @@ export interface PatientPublicLookup {
   maskedPhone?: string;
   maskedEmail?: string;
   birthYear?: number;
+  hasUserAccount?: boolean;
   mustRegister: boolean;
   lastGuestAppointmentDate?: string | null;
   lastGuestAppointmentType?: string | null;

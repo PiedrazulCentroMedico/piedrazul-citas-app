@@ -92,7 +92,6 @@ const demoSessions: Record<DemoRole, SessionUser> = {
   patient: {
     subject: 'demo-patient',
     displayName: 'Paciente Demo',
-    email: 'paciente.demo@piedrazul.test',
     roles: ['Patient'],
     mode: 'demo',
   },

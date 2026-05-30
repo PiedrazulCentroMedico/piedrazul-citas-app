@@ -38,11 +38,11 @@ public sealed class PatientLookupService(
     {
         var normalized = PatientInputValidator.Normalize(documentNumber);
         if (string.IsNullOrWhiteSpace(normalized))
-            return new PatientPublicLookupResponse(false, null, null, null, null, null, null, null, false, null, null);
+            return new PatientPublicLookupResponse(false, null, null, null, null, null, null, null, false, false, null, null);
 
         var profile = await _patients.GetByDocumentAsync(normalized, cancellationToken);
         if (profile is null)
-            return new PatientPublicLookupResponse(false, null, null, null, null, null, null, null, false, null, null);
+            return new PatientPublicLookupResponse(false, null, null, null, null, null, null, null, false, false, null, null);
 
         var appointments = await _appointments.GetAppointmentsByDocumentAsync(normalized, cancellationToken);
 
@@ -63,6 +63,7 @@ return new PatientPublicLookupResponse(
     MaskedPhone: PiiMasking.MaskPhone(profile.Phone),
     MaskedEmail: PiiMasking.MaskEmail(profile.Email),
     BirthYear: profile.BirthDate?.Year,
+    HasUserAccount: !string.IsNullOrWhiteSpace(profile.ExternalUserId),
     MustRegister: mustRegister,
     LastGuestAppointmentDate: lastGuestAppointment?.AppointmentDate,
     LastGuestAppointmentType: lastGuestAppointment?.Provider.Specialty);
