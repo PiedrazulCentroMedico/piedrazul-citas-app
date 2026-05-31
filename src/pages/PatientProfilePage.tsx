@@ -138,7 +138,7 @@ export function PatientProfilePage() {
       }
       const generatedCode = await requestPasswordReset(form.documentNumber);
       setPasswordCode(generatedCode);
-      setPasswordForm((current) => ({ ...current, code: generatedCode }));
+      setPasswordForm((current) => ({ ...current, code: generatedCode ?? '' }));
       setPasswordMessage('Código generado. Ahora escribe tu nueva contraseña y confirma el cambio.');
       setPasswordFieldErrors({});
     } catch (error) {
