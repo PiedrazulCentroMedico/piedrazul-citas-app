@@ -4,7 +4,7 @@ import { apiRequest } from '../api/http';
 import { useAuth } from '../auth/AuthContext';
 import { PortalTabs } from '../components/PortalTabs';
 import type { AppointmentResponse, AvailabilitySlot, Gender, GenderOption, InternalAppointmentPayload, PatientLookup, ProviderSummary } from '../types';
-import { formatDateLabel, hasSettingsAccess, sanitizeNameInput, validatePatientForm } from '../utils/validators';
+import { formatDateLabel, hasSettingsAccess, isDoctorRole, sanitizeNameInput, validatePatientForm } from '../utils/validators';
 
 const initialForm = {
   providerId: '',
@@ -21,31 +21,20 @@ const initialForm = {
   channel: 'WhatsApp',
 };
 
-
-function normalizeSpecialty(value: string) {
-  return value.normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
-}
-
-const FIXED_SPECIALTY_OPTIONS = [
-  { key: 'medicina general', label: 'Medicina General' },
-  { key: 'psicologia', label: 'Psicología' },
-  { key: 'terapia fisica', label: 'Terapia Física' },
-  { key: 'quiropractico', label: 'Quiropráctico' },
-];
-
-function buildSpecialtyOptions() {
-  return FIXED_SPECIALTY_OPTIONS;
-}
-
-function buildUniqueSpecialties(_providers: ProviderSummary[]) {
-  return buildSpecialtyOptions();
-}
-
 export function InternalNewAppointmentPage() {
   const navigate = useNavigate();
   const { session } = useAuth();
+  const isDoctor = isDoctorRole(session?.roles ?? []);
+  const canManageUsers = session?.roles.includes('Admin') ?? false;
+  const tabs = useMemo(() => {
+    const base = [{ to: '/portal/interno/citas', label: isDoctor ? 'Mis citas' : 'Listado de citas' }];
+    if (!isDoctor) base.push({ to: '/portal/interno/nueva-cita', label: 'Nueva cita' });
+    if (canManageUsers) base.push({ to: '/portal/interno/usuarios', label: 'Usuarios' });
+    if (hasSettingsAccess(session?.roles ?? [])) base.push({ to: '/portal/interno/configuracion', label: 'Configuración' });
+    if (isDoctor) base.push({ to: '/portal/interno/perfil', label: 'Mi perfil' });
+    return base;
+  }, [canManageUsers, isDoctor, session?.roles]);
   const [providers, setProviders] = useState<ProviderSummary[]>([]);
-  const [selectedSpecialtyKey, setSelectedSpecialtyKey] = useState('');
   const [form, setForm] = useState(initialForm);
   const [slots, setSlots] = useState<AvailabilitySlot[]>([]);
   const [lookupResults, setLookupResults] = useState<PatientLookup[]>([]);
@@ -53,28 +42,12 @@ export function InternalNewAppointmentPage() {
   const [appointmentMessage, setAppointmentMessage] = useState<string | null>(null);
   const [success, setSuccess] = useState<AppointmentResponse | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [fieldErrors, setFieldErrors] = useState<Record<string, boolean>>({});
-
-  const tabs = useMemo(() => {
-    const items = [
-      { to: '/portal/interno/citas', label: 'Listado de citas' },
-      { to: '/portal/interno/nueva-cita', label: 'Nueva cita' },
-      { to: '/portal/interno/reagendar', label: 'Reagendar paciente' },
-    ];
-    if (session?.roles.includes('Admin')) items.push({ to: '/portal/interno/usuarios', label: 'Usuarios' });
-    if (hasSettingsAccess(session?.roles ?? [])) items.push({ to: '/portal/interno/configuracion', label: 'Configuración' });
-    return items;
-  }, [session?.roles]);
 
   useEffect(() => {
     if (!session) return;
 
     apiRequest<ProviderSummary[]>('/api/public/providers', session)
-      .then((data) => {
-        setProviders(data);
-        const specialties = buildUniqueSpecialties(data);
-        if (specialties[0]) setSelectedSpecialtyKey(specialties[0].key);
-      })
+      .then((data) => setProviders(data))
       .catch((error: Error) => setAppointmentMessage(error.message));
   }, [session]);
 
@@ -89,17 +62,6 @@ export function InternalNewAppointmentPage() {
       .catch((error: Error) => setAppointmentMessage(error.message));
   }, [form.providerId, form.appointmentDate, session]);
 
-  const selectedProvider = useMemo(() => providers.find((provider) => provider.id === form.providerId) ?? null, [form.providerId, providers]);
-  const specialtyOptions = useMemo(() => buildUniqueSpecialties(providers), [providers]);
-  const selectedSpecialtyKeySafe = selectedSpecialtyKey || normalizeSpecialty(selectedProvider?.specialty ?? specialtyOptions[0]?.label ?? '');
-  const filteredProviders = useMemo(() => providers.filter((provider) => normalizeSpecialty(provider.specialty) === selectedSpecialtyKeySafe), [providers, selectedSpecialtyKeySafe]);
-
-  const handleSpecialtySelected = (specialtyKey: string) => {
-    setSelectedSpecialtyKey(specialtyKey);
-    const firstProvider = providers.find((provider) => normalizeSpecialty(provider.specialty) === specialtyKey);
-    if (firstProvider) handleChange('providerId', firstProvider.id);
-  };
-
   const handleChange = (field: keyof typeof form, value: string) => {
     setForm((current) => ({
       ...current,
@@ -108,7 +70,6 @@ export function InternalNewAppointmentPage() {
     }));
     setPatientMessage(null);
     setAppointmentMessage(null);
-    setFieldErrors((current) => ({ ...current, [field]: false }));
   };
 
   const resetForNewAppointment = () => {
@@ -152,23 +113,10 @@ export function InternalNewAppointmentPage() {
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    setFieldErrors({});
     if (!form.gender) {
-      setFieldErrors({ gender: true });
       setPatientMessage('Selecciona el género del paciente para continuar.');
       return;
     }
-
-    const nextErrors: Record<string, boolean> = {};
-    if (!/^\d{5,20}$/.test(form.documentNumber.trim())) nextErrors.documentNumber = true;
-    if (form.firstName.trim().length < 2) nextErrors.firstName = true;
-    if (form.lastName.trim().length < 2) nextErrors.lastName = true;
-    if (!/^\d{10}$/.test(form.phone.trim())) nextErrors.phone = true;
-    if (form.email.trim() && !/^\S+@\S+\.\S+$/.test(form.email.trim())) nextErrors.email = true;
-    if (!form.providerId) nextErrors.providerId = true;
-    if (!form.appointmentDate) nextErrors.appointmentDate = true;
-    if (!form.startTime) nextErrors.startTime = true;
-    if (form.notes.length > 500) nextErrors.notes = true;
 
     const errors = validatePatientForm(form);
     if (!form.providerId) errors.push('Selecciona un profesional.');
@@ -176,8 +124,7 @@ export function InternalNewAppointmentPage() {
     if (!form.startTime) errors.push('Selecciona una franja horaria.');
     if (form.notes.length > 500) errors.push('Las observaciones no pueden superar 500 caracteres.');
 
-    if (errors.length > 0 || Object.values(nextErrors).some(Boolean)) {
-      setFieldErrors(nextErrors);
+    if (errors.length > 0) {
       const first = errors[0];
       if (first.includes('documento') || first.includes('nombres') || first.includes('apellidos') || first.includes('celular') || first.includes('correo')) {
         setPatientMessage(first);
@@ -233,7 +180,7 @@ export function InternalNewAppointmentPage() {
           <div className="form-grid internal-filter-grid">
             <label>
               Documento
-              <input className={fieldErrors.documentNumber ? 'input-error' : ''} inputMode="numeric" maxLength={20} value={form.documentNumber} onChange={(event) => handleChange('documentNumber', event.target.value.replace(/\D/g, ''))} />
+              <input inputMode="numeric" maxLength={20} value={form.documentNumber} onChange={(event) => handleChange('documentNumber', event.target.value.replace(/\D/g, ''))} />
             </label>
             <div className="inline-actions end align-end">
               <button type="button" className="button button-secondary" onClick={() => void lookupPatient()}>
@@ -273,19 +220,19 @@ export function InternalNewAppointmentPage() {
           <div className="form-grid">
             <label>
               Nombres
-              <input className={fieldErrors.firstName ? 'input-error' : ''} maxLength={80} value={form.firstName} onChange={(event) => handleChange('firstName', sanitizeNameInput(event.target.value))} />
+              <input maxLength={80} value={form.firstName} onChange={(event) => handleChange('firstName', sanitizeNameInput(event.target.value))} />
             </label>
             <label>
               Apellidos
-              <input className={fieldErrors.lastName ? 'input-error' : ''} maxLength={80} value={form.lastName} onChange={(event) => handleChange('lastName', sanitizeNameInput(event.target.value))} />
+              <input maxLength={80} value={form.lastName} onChange={(event) => handleChange('lastName', sanitizeNameInput(event.target.value))} />
             </label>
             <label>
               Celular
-              <input className={fieldErrors.phone ? 'input-error' : ''} inputMode="numeric" maxLength={15} value={form.phone} onChange={(event) => handleChange('phone', event.target.value.replace(/\D/g, ''))} />
+              <input inputMode="numeric" maxLength={15} value={form.phone} onChange={(event) => handleChange('phone', event.target.value.replace(/\D/g, ''))} />
             </label>
             <label>
               Género
-              <select className={fieldErrors.gender ? 'input-error' : ''} value={form.gender} onChange={(event) => handleChange('gender', event.target.value)}>
+              <select value={form.gender} onChange={(event) => handleChange('gender', event.target.value)}>
                 <option value="">Seleccionar género</option>
                 <option value="Female">Mujer</option>
                 <option value="Male">Hombre</option>
@@ -294,11 +241,11 @@ export function InternalNewAppointmentPage() {
             </label>
             <label>
               Fecha de nacimiento
-              <input className={fieldErrors.birthDate ? 'input-error' : ''} type="date" value={form.birthDate} onChange={(event) => handleChange('birthDate', event.target.value)} />
+              <input type="date" value={form.birthDate} onChange={(event) => handleChange('birthDate', event.target.value)} />
             </label>
             <label>
               Correo electrónico
-              <input className={fieldErrors.email ? 'input-error' : ''} type="email" maxLength={150} value={form.email} onChange={(event) => handleChange('email', event.target.value)} />
+              <input type="email" maxLength={150} value={form.email} onChange={(event) => handleChange('email', event.target.value)} />
             </label>
           </div>
 
@@ -307,59 +254,38 @@ export function InternalNewAppointmentPage() {
 
         <section className="section-card stack-md">
           <h2>Datos de la cita</h2>
-          <div className="appointment-flow-card stack-md">
-            <div className="step-hint">
-              <strong>1. Selecciona tipo y profesional</strong>
-              <span>Primero elige la especialidad; después selecciona el profesional disponible.</span>
-            </div>
-            <div className="specialty-choice-grid compact-choice-grid" role="group" aria-label="Tipo de profesional">
-              {specialtyOptions.map((specialty) => (
-                <button key={specialty.key} type="button" className={`choice-card ${selectedSpecialtyKeySafe === specialty.key ? 'selected' : ''}`} onClick={() => handleSpecialtySelected(specialty.key)}>
-                  <span className="choice-check">{selectedSpecialtyKeySafe === specialty.key ? '✓' : ''}</span>
-                  <strong>{specialty.label}</strong>
-                </button>
-              ))}
-            </div>
-            <div className="provider-choice-grid" role="group" aria-label="Profesional">
-              {filteredProviders.map((provider) => (
-                <button key={provider.id} type="button" className={`provider-choice-card ${form.providerId === provider.id ? 'selected' : ''} ${fieldErrors.providerId ? 'input-error' : ''}`} onClick={() => handleChange('providerId', provider.id)}>
-                  <strong>{provider.fullName}</strong>
-                  <span>{provider.specialty}</span>
-                </button>
-              ))}
-            </div>
-            {selectedProvider && <div className="selection-help success-soft">Profesional seleccionado: <strong>{selectedProvider.fullName}</strong>. Ahora completa fecha, canal y horario.</div>}
-          </div>
-
-          <div className="appointment-flow-card stack-md">
-            <div className="step-hint">
-              <strong>2. Completa fecha y canal</strong>
-              <span>Cuando selecciones la fecha aparecerán las horas disponibles.</span>
-            </div>
-            <div className="form-grid">
-              <label>
-                Fecha de la cita
-                <input className={fieldErrors.appointmentDate ? 'input-error' : ''} type="date" value={form.appointmentDate} onChange={(event) => handleChange('appointmentDate', event.target.value)} />
-              </label>
-              <label>
-                Canal de contacto
-                <select value={form.channel} onChange={(event) => handleChange('channel', event.target.value)}>
-                  <option value="WhatsApp">WhatsApp</option>
-                  <option value="Phone">Llamada</option>
-                  <option value="Internal">Mostrador</option>
-                </select>
-              </label>
-              <label className="span-two">
-                Observaciones para la atención
-                <textarea className={fieldErrors.notes ? 'input-error' : ''} rows={3} maxLength={500} value={form.notes} placeholder="Ejemplo: paciente solicita control, llega por WhatsApp, requiere confirmación telefónica..." onChange={(event) => handleChange('notes', event.target.value)} />
-              </label>
-            </div>
+          <div className="form-grid">
+            <label className="span-two">
+              Profesional
+              <select value={form.providerId} onChange={(event) => handleChange('providerId', event.target.value)}>
+                <option value="">Selecciona una opción</option>
+                {providers.map((provider) => (
+                  <option key={provider.id} value={provider.id}>{provider.specialty} - {provider.fullName}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Fecha
+              <input type="date" value={form.appointmentDate} onChange={(event) => handleChange('appointmentDate', event.target.value)} />
+            </label>
+            <label>
+              Canal
+              <select value={form.channel} onChange={(event) => handleChange('channel', event.target.value)}>
+                <option value="WhatsApp">WhatsApp</option>
+                <option value="Phone">Llamada</option>
+                <option value="Internal">Mostrador</option>
+              </select>
+            </label>
+            <label className="span-two">
+              Observaciones
+              <textarea rows={4} maxLength={500} value={form.notes} onChange={(event) => handleChange('notes', event.target.value)} />
+            </label>
           </div>
 
           <div className="stack-sm">
-            <h3>3. Selecciona una hora disponible</h3>
+            <h3>Horarios disponibles</h3>
             <div className="slot-grid">
-              {slots.length === 0 && <div className="empty-state">Selecciona primero el profesional y la fecha. Luego aquí aparecerán las horas disponibles.</div>}
+              {slots.length === 0 && <div className="empty-state">Selecciona profesional y fecha para ver los horarios disponibles.</div>}
               {slots.map((slot) => (
                 <button
                   type="button"

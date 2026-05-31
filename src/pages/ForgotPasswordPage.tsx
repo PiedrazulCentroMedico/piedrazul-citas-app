@@ -48,10 +48,10 @@ export function ForgotPasswordPage() {
           </label>
 
           {message && <div className={`feedback-card ${code ? 'success' : 'error'}`}>{message}</div>}
-          {code && (
+          {authMode === 'demo' && code && (
             <div className="notice-card stack-sm">
-              <strong>Código temporal: {code}</strong>
-              <span className="muted-text">En modo demo este código se muestra en pantalla. Expira en 15 minutos.</span>
+              <strong>⚠️ Modo demo activo: el código OTP es {code}.</strong>
+              <span className="muted-text">En producción esto llegaría a tu correo o celular. Expira en 15 minutos.</span>
             </div>
           )}
 
