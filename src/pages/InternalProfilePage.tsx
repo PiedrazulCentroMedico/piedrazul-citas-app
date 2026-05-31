@@ -3,7 +3,7 @@ import { apiRequest } from '../api/http';
 import { useAuth } from '../auth/AuthContext';
 import { PortalTabs } from '../components/PortalTabs';
 import type { ProviderSchedule, ProviderSchedulePayload } from '../types';
-import { getLinkedProviderId } from '../utils/sessionStorage';
+import { getLinkedProviderId, linkDefaultSeededDoctors } from '../utils/sessionStorage';
 import { sanitizeNameInput } from '../utils/validators';
 
 export function InternalProfilePage() {
@@ -22,14 +22,15 @@ export function InternalProfilePage() {
 
   useEffect(() => {
     if (!session) return;
-    const linkedProviderId = getLinkedProviderId(session.email);
-    if (!linkedProviderId) {
-      setMessage('No encontramos un perfil profesional asociado a tu cuenta. Pide al administrador que te vincule a un profesional.');
-      return;
-    }
 
     apiRequest<ProviderSchedule[]>('/api/admin/provider-schedules', session)
       .then((items) => {
+        linkDefaultSeededDoctors(items);
+        const linkedProviderId = getLinkedProviderId(session.email);
+        if (!linkedProviderId) {
+          setMessage('No encontramos un perfil profesional asociado a tu cuenta. Pide al administrador que te vincule a un profesional.');
+          return;
+        }
         const found = items.find((item) => item.providerId === linkedProviderId) ?? null;
         if (!found) {
           setMessage('No encontramos tu perfil profesional en el sistema.');

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { apiRequest } from '../api/http';
 import { useAuth } from '../auth/AuthContext';
@@ -59,6 +59,39 @@ function cleanOptionalEmail(value?: string | null) {
   return looksLikeDemoEmail(value) ? '' : (value ?? '');
 }
 
+function normalizeSpecialty(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .trim()
+    .toLowerCase();
+}
+
+const FIXED_SPECIALTY_OPTIONS = [
+  { key: 'medicina general', label: 'Medicina General' },
+  { key: 'psicologia', label: 'Psicología' },
+  { key: 'terapia fisica', label: 'Terapia Física' },
+  { key: 'quiropractico', label: 'Quiropráctico' },
+];
+
+function buildSpecialtyOptions() {
+  return FIXED_SPECIALTY_OPTIONS;
+}
+
+function buildUniqueSpecialties(_providers: ProviderSummary[]) {
+  return buildSpecialtyOptions();
+}
+function scrollToElement(ref: React.RefObject<HTMLElement | null>, extraOffset = 18) {
+  window.setTimeout(() => {
+    const element = ref.current;
+    if (!element) return;
+    const headerHeight = document.querySelector('.topbar')?.getBoundingClientRect().height ?? 0;
+    const top = element.getBoundingClientRect().top + window.scrollY - headerHeight - extraOffset;
+    window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+  }, 120);
+}
+
+
 const initialForm = {
   providerId: '',
   appointmentDate: toLocalDateInputValue(new Date()),
@@ -80,6 +113,7 @@ export function PublicBookingPage() {
   const [form, setForm] = useState(initialForm);
   const [dateOffset, setDateOffset] = useState(0);
   const [providers, setProviders] = useState<ProviderSummary[]>([]);
+  const [selectedSpecialtyKey, setSelectedSpecialtyKey] = useState('');
   const [slots, setSlots] = useState<AvailabilitySlot[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [success, setSuccess] = useState<AppointmentResponse | null>(null);
@@ -92,11 +126,18 @@ export function PublicBookingPage() {
   const [captcha, setCaptcha] = useState<CaptchaChallenge>(createCaptchaChallenge);
   const [reprogramTarget, setReprogramTarget] = useState<AppointmentResponse | null>(null);
   const [registeredPatientModal, setRegisteredPatientModal] = useState<PatientPublicLookup | null>(null);
+  const [documentNotice, setDocumentNotice] = useState<string | null>(null);
+  const patientDataRef = useRef<HTMLElement | null>(null);
+  const providerStepRef = useRef<HTMLElement | null>(null);
+  const scheduleStepRef = useRef<HTMLElement | null>(null);
+  const antiBotStepRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     apiRequest<ProviderSummary[]>('/api/public/providers', null)
       .then((data) => {
         setProviders(data);
+        const specialties = buildUniqueSpecialties(data);
+        if (specialties[0]) setSelectedSpecialtyKey((current) => current || specialties[0].key);
         if (data[0]) {
           setForm((current) => ({ ...current, providerId: current.providerId || data[0].id }));
         }
@@ -179,6 +220,12 @@ export function PublicBookingPage() {
   }, [form.providerId, form.appointmentDate]);
 
   const selectedProvider = useMemo(() => providers.find((provider) => provider.id === form.providerId), [providers, form.providerId]);
+  const specialtyOptions = useMemo(() => buildUniqueSpecialties(providers), [providers]);
+  const selectedSpecialtyKeySafe = selectedSpecialtyKey || normalizeSpecialty(selectedProvider?.specialty ?? specialtyOptions[0]?.label ?? '');
+  const filteredProviders = useMemo(
+    () => providers.filter((provider) => normalizeSpecialty(provider.specialty) === selectedSpecialtyKeySafe),
+    [providers, selectedSpecialtyKeySafe],
+  );
   const dateOptions = useMemo(() => buildDateOptions(dateOffset), [dateOffset]);
   const mustCreateAccount = false;
 
@@ -240,6 +287,13 @@ export function PublicBookingPage() {
       const lookup = await apiRequest<PatientPublicLookup>(`/api/public/patients/lookup?document=${documentNumber}`, null);
       setDocumentVerified(true);
       setPatientLookup(lookup.exists ? lookup : null);
+      setDocumentNotice(lookup.exists
+        ? `Encontramos información previa para ${lookup.firstName ?? ''} ${lookup.lastName ?? ''}. Completa los datos faltantes para continuar.`
+        : 'No encontramos esta cédula. Continúa llenando tus datos para reservar.');
+      window.setTimeout(() => {
+        setDocumentNotice(null);
+        scrollToElement(patientDataRef);
+      }, 3000);
 
       if (lookup.hasUserAccount) {
         setRegisteredPatientModal(lookup);
@@ -277,6 +331,57 @@ export function PublicBookingPage() {
     } finally {
       setLookupLoading(false);
     }
+  };
+
+  const handleDataConfirmed = () => {
+    if (!isPatientSession && !documentVerified) {
+      setMessage('Primero verifica la cédula para continuar.');
+      return;
+    }
+
+    const errors = validatePatientForm(form);
+    if (!form.gender) errors.unshift('Selecciona un género para continuar.');
+    if (errors.length > 0) {
+      setMessage(errors[0]);
+      return;
+    }
+
+    setMessage(null);
+    scrollToElement(providerStepRef, 22);
+  };
+
+  const handleSpecialtySelected = (specialtyKey: string) => {
+    setSelectedSpecialtyKey(specialtyKey);
+    const firstProvider = providers.find((provider) => normalizeSpecialty(provider.specialty) === specialtyKey);
+    if (firstProvider) {
+      handleChange('providerId', firstProvider.id);
+    }
+  };
+
+  const handleProviderSelected = (providerId: string) => {
+    handleChange('providerId', providerId);
+  };
+
+  const handleProviderConfirmed = () => {
+    if (!form.providerId) {
+      setMessage('Selecciona un médico o terapista para continuar.');
+      return;
+    }
+    setMessage(null);
+    scrollToElement(scheduleStepRef, 22);
+  };
+
+  const handleScheduleConfirmed = () => {
+    if (!form.appointmentDate) {
+      setMessage('Selecciona una fecha para continuar.');
+      return;
+    }
+    if (!form.startTime) {
+      setMessage('Selecciona una hora disponible para continuar.');
+      return;
+    }
+    setMessage(null);
+    scrollToElement(antiBotStepRef, 22);
   };
 
   const validateReservation = () => {
@@ -369,34 +474,33 @@ export function PublicBookingPage() {
 
       <form className="stack-lg" onSubmit={handleSubmit}>
         {!isPatientSession && (
-          <section className="section-card stack-md">
+          <section className="section-card stack-md compact-booking-step">
             <h2>Paso 1. Verifica tu cédula</h2>
-            <div className="guest-warning-panel">
-              <div className="guest-warning-block">
-                <span className="eyebrow">Modo invitado</span>
-                <h3>Estás reservando sin iniciar sesión</h3>
-                <p className="muted-text">Primero debes ingresar tu cédula para verificar si ya existe información previa. Si no existe, podrás completar tus datos manualmente.</p>
-              </div>
-              <div className="guest-warning-block guest-warning-block-accent">
-                <span className="eyebrow">¿Ya tienes cuenta?</span>
-                <h3>Inicia sesión para reservar más rápido</h3>
-                <p className="muted-text">Con tu usuario podrás consultar tus citas, guardar tu perfil y evitar volver a escribir tus datos en cada reserva.</p>
-                <div className="inline-actions wrap">
-                  <Link className="button button-secondary" to="/iniciar-sesion">Iniciar sesión</Link>
-                  <Link className="button" to="/crear-cuenta">Crear cuenta</Link>
-                  <Link className="button button-secondary" to="/consultar-citas">Consultar citas</Link>
-                </div>
-              </div>
-            </div>
-            <div className="form-grid internal-filter-grid">
+            <div className="form-grid id-check-grid">
               <label>
                 Número de cédula
                 <input inputMode="numeric" maxLength={20} value={form.documentNumber} onChange={(event) => handleChange('documentNumber', event.target.value.replace(/\D/g, ''))} />
               </label>
-              <div className="inline-actions end" style={{ alignItems: 'end' }}>
+              <div className="inline-actions align-end">
                 <button type="button" className="button" onClick={verifyDocument} disabled={lookupLoading}>
                   {lookupLoading ? 'Verificando...' : 'Verificar cédula'}
                 </button>
+              </div>
+            </div>
+            <div className="guest-warning-panel guest-warning-panel-compact">
+              <div className="guest-warning-block">
+                <span className="eyebrow">Modo invitado</span>
+                <h3>Reserva sin iniciar sesión</h3>
+                <p className="muted-text">Verifica tu cédula. Si no existe, podrás completar tus datos manualmente.</p>
+              </div>
+              <div className="guest-warning-block guest-warning-block-accent">
+                <span className="eyebrow">¿Ya tienes cuenta?</span>
+                <h3>Reserva más rápido</h3>
+                <p className="muted-text">Inicia sesión para consultar tus citas y evitar escribir tus datos de nuevo.</p>
+                <div className="inline-actions wrap compact-actions">
+                  <Link className="button button-secondary" to="/iniciar-sesion">Iniciar sesión</Link>
+                  <Link className="button" to="/crear-cuenta">Crear cuenta</Link>
+                </div>
               </div>
             </div>
             {documentVerified && !patientLookup && <div className="feedback-card success">No encontramos esta cédula. Continúa llenando tus datos para reservar.</div>}
@@ -408,7 +512,7 @@ export function PublicBookingPage() {
           </section>
         )}
 
-        <section className="section-card stack-md">
+        <section ref={patientDataRef} className="section-card stack-md">
           <h2>{isPatientSession ? 'Paso 1. Confirma tus datos' : 'Paso 2. Completa tus datos'}</h2>
           {isPatientSession ? (
             <>
@@ -462,24 +566,56 @@ export function PublicBookingPage() {
               </label>
             </div>
           )}
+          <div className="inline-actions end">
+            <button type="button" className="button" onClick={handleDataConfirmed}>Confirmar datos y continuar</button>
+          </div>
         </section>
 
-        <section className="section-card stack-md">
-          <h2>{isPatientSession ? 'Paso 2. Selecciona el profesional y la fecha' : 'Paso 3. Selecciona el profesional y la fecha'}</h2>
+        <section ref={providerStepRef} className="section-card stack-md">
+          <h2>{isPatientSession ? 'Paso 2. Selecciona el profesional' : 'Paso 3. Selecciona el profesional'}</h2>
+          <p className="muted-text">Primero elige la especialidad y luego el profesional que atenderá la cita.</p>
 
-          <div className="form-grid">
-            <label>
-              Profesional
-              <select value={form.providerId} disabled={Boolean(reprogramTarget)} onChange={(event) => handleChange('providerId', event.target.value)}>
-                <option value="">Selecciona una opción</option>
-                {providers.map((provider) => (
-                  <option key={provider.id} value={provider.id}>{provider.specialty} - {provider.fullName}</option>
-                ))}
-              </select>
-            </label>
+          <div className="selection-step-label">1. Selecciona especialidad</div>
+          <div className="specialty-choice-grid" role="group" aria-label="Seleccionar especialidad">
+            {specialtyOptions.map((specialty) => (
+              <button
+                key={specialty.key}
+                type="button"
+                className={`choice-card ${selectedSpecialtyKeySafe === specialty.key ? 'selected' : ''}`}
+                onClick={() => handleSpecialtySelected(specialty.key)}
+                disabled={Boolean(reprogramTarget)}
+              >
+                <span className="choice-check">{selectedSpecialtyKeySafe === specialty.key ? '✓' : ''}</span>
+                <strong>{specialty.label}</strong>
+              </button>
+            ))}
           </div>
 
-          {selectedProvider && <div className="summary-badge">{selectedProvider.fullName} · {selectedProvider.specialty}</div>}
+          <div className="selection-step-label">2. Selecciona médico</div>
+          <div className="provider-choice-grid" role="group" aria-label="Seleccionar profesional">
+            {filteredProviders.map((provider) => (
+              <button
+                key={provider.id}
+                type="button"
+                className={`provider-choice-card ${form.providerId === provider.id ? 'selected' : ''}`}
+                onClick={() => handleProviderSelected(provider.id)}
+                disabled={Boolean(reprogramTarget)}
+              >
+                <strong>{provider.fullName}</strong>
+                <span>{provider.specialty}</span>
+              </button>
+            ))}
+          </div>
+
+          {selectedProvider && <div className="selection-help success-soft">Seleccionaste a <strong>{selectedProvider.fullName}</strong>. Confirma para continuar con la fecha y la hora.</div>}
+          <div className="inline-actions end">
+            <button type="button" className="button" onClick={handleProviderConfirmed}>Confirmar profesional y continuar</button>
+          </div>
+        </section>
+
+        <section ref={scheduleStepRef} className="section-card stack-md">
+          <h2>{isPatientSession ? 'Paso 3. Selecciona fecha y hora' : 'Paso 4. Selecciona fecha y hora'}</h2>
+          <p className="muted-text">Selecciona primero el día de atención; luego marca una hora disponible para confirmar la cita.</p>
 
           <div className="date-strip" aria-label="Seleccionar fecha de la cita">
             <button
@@ -514,11 +650,8 @@ export function PublicBookingPage() {
               ›
             </button>
           </div>
-        </section>
 
-        <section className="section-card stack-md">
-          <h2>{isPatientSession ? 'Paso 3. Elige una franja disponible' : 'Paso 4. Elige una franja disponible'}</h2>
-          {form.appointmentDate && <p className="muted-text">Disponibilidad para {formatDateLabel(form.appointmentDate)}.</p>}
+          {form.appointmentDate && <div className="selection-help">Fecha seleccionada: <strong>{formatDateLabel(form.appointmentDate)}</strong>. Ahora selecciona una hora disponible.</div>}
           {loadingSlots && <div className="loading-card">Consultando franjas disponibles...</div>}
           {!loadingSlots && (
             <div className="slot-grid">
@@ -540,7 +673,11 @@ export function PublicBookingPage() {
           )}
 
           {!isPatientSession && documentVerified && !mustCreateAccount && (
-            <div className="notice-card stack-sm">
+            <>
+            <div className="inline-actions end">
+              <button type="button" className="button button-secondary" onClick={handleScheduleConfirmed}>Confirmar fecha y hora</button>
+            </div>
+            <div ref={antiBotStepRef} className="notice-card stack-sm">
               <div className="between wrap">
                 <div>
                   <strong>Verificación anti-bots</strong>
@@ -555,6 +692,7 @@ export function PublicBookingPage() {
                 </label>
               </div>
             </div>
+            </>
           )}
 
           {message && <div className="feedback-card error">{message}</div>}
@@ -566,6 +704,16 @@ export function PublicBookingPage() {
         </section>
       </form>
 
+      {documentNotice && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true">
+          <section className="modal-card compact-modal stack-md">
+            <span className="eyebrow">Verificación de cédula</span>
+            <h2>{documentNotice}</h2>
+            <p className="muted-text">Esta ventana se cerrará automáticamente y te llevará al paso de datos.</p>
+          </section>
+        </div>
+      )}
+
       {success && (
       <div className="modal-backdrop" role="dialog" aria-modal="true">
         <section className="modal-card stack-md">
@@ -573,10 +721,10 @@ export function PublicBookingPage() {
           <h2>{reprogramTarget ? 'Tu cita fue reprogramada correctamente' : 'Tu cita fue registrada correctamente'}</h2>
 
           <div className="summary-grid">
-            <div><span>Paciente</span><strong>{success.patientFullName}</strong></div>
-            <div><span>Profesional</span><strong>{success.providerName}</strong></div>
-            <div><span>Especialidad</span><strong>{success.specialty}</strong></div>
-            <div><span>Fecha y hora</span><strong>{formatDateLabel(success.appointmentDate)} · {success.startTime}</strong></div>
+            <div><span>Paciente:</span><strong>{success.patientFullName}</strong></div>
+            <div><span>Profesional:</span><strong>{success.providerName}</strong></div>
+            <div><span>Especialidad:</span><strong>{success.specialty}</strong></div>
+            <div><span>Fecha y hora:</span><strong>{formatDateLabel(success.appointmentDate)} · {success.startTime}</strong></div>
           </div>
 
           {!isPatientSession && (

@@ -1,16 +1,18 @@
 import { useEffect, useState } from 'react';
 
-type FontSize = 'normal' | 'large' | 'extra-large';
-
 const STORAGE_KEYS = {
   contrast: 'pz-accessibility-contrast',
-  fontSize: 'pz-accessibility-font-size',
+  fontLevel: 'pz-accessibility-font-level',
+  boldText: 'pz-accessibility-bold-text',
 };
+
+const MIN_FONT_LEVEL = -3;
+const MAX_FONT_LEVEL = 6;
 
 export function AccessibilityTools() {
   const [highContrast, setHighContrast] = useState(() => localStorage.getItem(STORAGE_KEYS.contrast) === 'true');
-  const [fontSize, setFontSize] = useState<FontSize>(() => (localStorage.getItem(STORAGE_KEYS.fontSize) as FontSize) || 'normal');
-  const [open, setOpen] = useState(false);
+  const [fontLevel, setFontLevel] = useState(() => Number(localStorage.getItem(STORAGE_KEYS.fontLevel) ?? 0));
+  const [boldText, setBoldText] = useState(() => localStorage.getItem(STORAGE_KEYS.boldText) === 'true');
 
   useEffect(() => {
     document.body.classList.toggle('accessibility-contrast', highContrast);
@@ -18,44 +20,28 @@ export function AccessibilityTools() {
   }, [highContrast]);
 
   useEffect(() => {
-    document.body.classList.remove('font-large', 'font-extra-large');
-    if (fontSize === 'large') document.body.classList.add('font-large');
-    if (fontSize === 'extra-large') document.body.classList.add('font-extra-large');
-    localStorage.setItem(STORAGE_KEYS.fontSize, fontSize);
-  }, [fontSize]);
+    const safeLevel = Math.min(MAX_FONT_LEVEL, Math.max(MIN_FONT_LEVEL, fontLevel));
+    document.body.style.setProperty('--accessibility-font-scale', `${100 + safeLevel * 5}%`);
+    document.body.classList.toggle('accessibility-font-custom', safeLevel !== 0);
+    localStorage.setItem(STORAGE_KEYS.fontLevel, String(safeLevel));
+  }, [fontLevel]);
 
-  const reduceFont = () => {
-    setFontSize((current) => {
-      if (current === 'extra-large') return 'large';
-      if (current === 'large') return 'normal';
-      return 'normal';
-    });
-  };
+  useEffect(() => {
+    document.body.classList.toggle('accessibility-bold', boldText);
+    localStorage.setItem(STORAGE_KEYS.boldText, String(boldText));
+  }, [boldText]);
 
-  const increaseFont = () => {
-    setFontSize((current) => {
-      if (current === 'normal') return 'large';
-      if (current === 'large') return 'extra-large';
-      return 'extra-large';
-    });
-  };
-
-  const resetTools = () => {
-    setHighContrast(false);
-    setFontSize('normal');
-  };
+  const reduceFont = () => setFontLevel((current) => Math.max(MIN_FONT_LEVEL, current - 1));
+  const increaseFont = () => setFontLevel((current) => Math.min(MAX_FONT_LEVEL, current + 1));
 
   return (
-    <aside className={`accessibility-tools ${open ? 'is-open' : ''}`} aria-label="Herramientas de accesibilidad">
+    <aside className="accessibility-tools" aria-label="Herramientas de accesibilidad">
       <button
         type="button"
         className="accessibility-toggle"
-        onClick={() => setOpen((current) => !current)}
-        aria-expanded={open}
         aria-controls="accessibility-panel"
       >
-        ♿
-        <span>Ayuda visual</span>
+        <span className="accessibility-main-label">Ayuda visual</span>
       </button>
 
       <div id="accessibility-panel" className="accessibility-panel">
@@ -63,17 +49,17 @@ export function AccessibilityTools() {
           ◐
           <span>Contraste</span>
         </button>
-        <button type="button" onClick={reduceFont} title="Reducir tamaño de letra">
+        <button type="button" onClick={reduceFont} title="Reducir tamaño de letra" disabled={fontLevel <= MIN_FONT_LEVEL}>
           A-
-          <span>Reducir letra</span>
+          <span>Reducir letra ({Math.abs(MIN_FONT_LEVEL)} niveles)</span>
         </button>
-        <button type="button" onClick={increaseFont} title="Aumentar tamaño de letra">
+        <button type="button" onClick={increaseFont} title="Aumentar tamaño de letra" disabled={fontLevel >= MAX_FONT_LEVEL}>
           A+
-          <span>Aumentar letra</span>
+          <span>Aumentar letra ({MAX_FONT_LEVEL} niveles)</span>
         </button>
-        <button type="button" onClick={resetTools} title="Restablecer ayudas visuales">
-          ↺
-          <span>Restablecer</span>
+        <button type="button" onClick={() => setBoldText((current) => !current)} title="Activar o desactivar negrita">
+          B
+          <span>Negrita</span>
         </button>
       </div>
     </aside>

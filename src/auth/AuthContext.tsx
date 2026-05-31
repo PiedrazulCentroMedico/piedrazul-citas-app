@@ -9,7 +9,7 @@ import { hashPassword, verifyPassword } from '../utils/passwordHash';
 const PATIENT_SESSION_STORAGE_KEY = 'piedrazul-patient-session';
 const INTERNAL_SESSION_STORAGE_KEY = 'piedrazul-internal-session';
 const ACCOUNTS_STORAGE_KEY = 'piedrazul-accounts';
-const ACCOUNTS_VERSION_KEY = 'piedrazul-accounts-v2';
+const ACCOUNTS_VERSION_KEY = 'piedrazul-accounts-v3';
 const RESET_STORAGE_KEY = 'piedrazul-password-reset';
 
 interface DemoAccount {
@@ -84,6 +84,34 @@ const seededAccounts: DemoAccount[] = [
     password: 'Medico123*',
     displayName: 'Profesional Piedrazul',
     subject: 'staff-medico@piedrazul.local',
+    roles: ['Doctor'],
+  },
+  {
+    email: 'ana@piedrazul.local',
+    password: 'Ana123*',
+    displayName: 'Ana Gómez',
+    subject: 'staff-ana@piedrazul.local',
+    roles: ['Doctor'],
+  },
+  {
+    email: 'laura@piedrazul.local',
+    password: 'Laura123*',
+    displayName: 'Laura Rivera',
+    subject: 'staff-laura@piedrazul.local',
+    roles: ['Doctor'],
+  },
+  {
+    email: 'carlos@piedrazul.local',
+    password: 'Carlos123*',
+    displayName: 'Carlos Martínez',
+    subject: 'staff-carlos@piedrazul.local',
+    roles: ['Doctor'],
+  },
+  {
+    email: 'andres@piedrazul.local',
+    password: 'Andres123*',
+    displayName: 'Andres Vega',
+    subject: 'staff-andres@piedrazul.local',
     roles: ['Doctor'],
   },
 ];

@@ -21,10 +21,31 @@ const initialForm = {
   channel: 'WhatsApp',
 };
 
+
+function normalizeSpecialty(value: string) {
+  return value.normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
+}
+
+const FIXED_SPECIALTY_OPTIONS = [
+  { key: 'medicina general', label: 'Medicina General' },
+  { key: 'psicologia', label: 'Psicología' },
+  { key: 'terapia fisica', label: 'Terapia Física' },
+  { key: 'quiropractico', label: 'Quiropráctico' },
+];
+
+function buildSpecialtyOptions() {
+  return FIXED_SPECIALTY_OPTIONS;
+}
+
+function buildUniqueSpecialties(_providers: ProviderSummary[]) {
+  return buildSpecialtyOptions();
+}
+
 export function InternalNewAppointmentPage() {
   const navigate = useNavigate();
   const { session } = useAuth();
   const [providers, setProviders] = useState<ProviderSummary[]>([]);
+  const [selectedSpecialtyKey, setSelectedSpecialtyKey] = useState('');
   const [form, setForm] = useState(initialForm);
   const [slots, setSlots] = useState<AvailabilitySlot[]>([]);
   const [lookupResults, setLookupResults] = useState<PatientLookup[]>([]);
@@ -38,6 +59,7 @@ export function InternalNewAppointmentPage() {
     const items = [
       { to: '/portal/interno/citas', label: 'Listado de citas' },
       { to: '/portal/interno/nueva-cita', label: 'Nueva cita' },
+      { to: '/portal/interno/reagendar', label: 'Reagendar paciente' },
     ];
     if (session?.roles.includes('Admin')) items.push({ to: '/portal/interno/usuarios', label: 'Usuarios' });
     if (hasSettingsAccess(session?.roles ?? [])) items.push({ to: '/portal/interno/configuracion', label: 'Configuración' });
@@ -48,7 +70,11 @@ export function InternalNewAppointmentPage() {
     if (!session) return;
 
     apiRequest<ProviderSummary[]>('/api/public/providers', session)
-      .then((data) => setProviders(data))
+      .then((data) => {
+        setProviders(data);
+        const specialties = buildUniqueSpecialties(data);
+        if (specialties[0]) setSelectedSpecialtyKey(specialties[0].key);
+      })
       .catch((error: Error) => setAppointmentMessage(error.message));
   }, [session]);
 
@@ -62,6 +88,17 @@ export function InternalNewAppointmentPage() {
       .then(setSlots)
       .catch((error: Error) => setAppointmentMessage(error.message));
   }, [form.providerId, form.appointmentDate, session]);
+
+  const selectedProvider = useMemo(() => providers.find((provider) => provider.id === form.providerId) ?? null, [form.providerId, providers]);
+  const specialtyOptions = useMemo(() => buildUniqueSpecialties(providers), [providers]);
+  const selectedSpecialtyKeySafe = selectedSpecialtyKey || normalizeSpecialty(selectedProvider?.specialty ?? specialtyOptions[0]?.label ?? '');
+  const filteredProviders = useMemo(() => providers.filter((provider) => normalizeSpecialty(provider.specialty) === selectedSpecialtyKeySafe), [providers, selectedSpecialtyKeySafe]);
+
+  const handleSpecialtySelected = (specialtyKey: string) => {
+    setSelectedSpecialtyKey(specialtyKey);
+    const firstProvider = providers.find((provider) => normalizeSpecialty(provider.specialty) === specialtyKey);
+    if (firstProvider) handleChange('providerId', firstProvider.id);
+  };
 
   const handleChange = (field: keyof typeof form, value: string) => {
     setForm((current) => ({
@@ -270,38 +307,59 @@ export function InternalNewAppointmentPage() {
 
         <section className="section-card stack-md">
           <h2>Datos de la cita</h2>
-          <div className="form-grid">
-            <label className="span-two">
-              Profesional
-              <select className={fieldErrors.providerId ? 'input-error' : ''} value={form.providerId} onChange={(event) => handleChange('providerId', event.target.value)}>
-                <option value="">Selecciona una opción</option>
-                {providers.map((provider) => (
-                  <option key={provider.id} value={provider.id}>{provider.specialty} - {provider.fullName}</option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Fecha
-              <input className={fieldErrors.appointmentDate ? 'input-error' : ''} type="date" value={form.appointmentDate} onChange={(event) => handleChange('appointmentDate', event.target.value)} />
-            </label>
-            <label>
-              Canal
-              <select value={form.channel} onChange={(event) => handleChange('channel', event.target.value)}>
-                <option value="WhatsApp">WhatsApp</option>
-                <option value="Phone">Llamada</option>
-                <option value="Internal">Mostrador</option>
-              </select>
-            </label>
-            <label className="span-two">
-              Observaciones
-              <textarea className={fieldErrors.notes ? 'input-error' : ''} rows={4} maxLength={500} value={form.notes} onChange={(event) => handleChange('notes', event.target.value)} />
-            </label>
+          <div className="appointment-flow-card stack-md">
+            <div className="step-hint">
+              <strong>1. Selecciona tipo y profesional</strong>
+              <span>Primero elige la especialidad; después selecciona el profesional disponible.</span>
+            </div>
+            <div className="specialty-choice-grid compact-choice-grid" role="group" aria-label="Tipo de profesional">
+              {specialtyOptions.map((specialty) => (
+                <button key={specialty.key} type="button" className={`choice-card ${selectedSpecialtyKeySafe === specialty.key ? 'selected' : ''}`} onClick={() => handleSpecialtySelected(specialty.key)}>
+                  <span className="choice-check">{selectedSpecialtyKeySafe === specialty.key ? '✓' : ''}</span>
+                  <strong>{specialty.label}</strong>
+                </button>
+              ))}
+            </div>
+            <div className="provider-choice-grid" role="group" aria-label="Profesional">
+              {filteredProviders.map((provider) => (
+                <button key={provider.id} type="button" className={`provider-choice-card ${form.providerId === provider.id ? 'selected' : ''} ${fieldErrors.providerId ? 'input-error' : ''}`} onClick={() => handleChange('providerId', provider.id)}>
+                  <strong>{provider.fullName}</strong>
+                  <span>{provider.specialty}</span>
+                </button>
+              ))}
+            </div>
+            {selectedProvider && <div className="selection-help success-soft">Profesional seleccionado: <strong>{selectedProvider.fullName}</strong>. Ahora completa fecha, canal y horario.</div>}
+          </div>
+
+          <div className="appointment-flow-card stack-md">
+            <div className="step-hint">
+              <strong>2. Completa fecha y canal</strong>
+              <span>Cuando selecciones la fecha aparecerán las horas disponibles.</span>
+            </div>
+            <div className="form-grid">
+              <label>
+                Fecha de la cita
+                <input className={fieldErrors.appointmentDate ? 'input-error' : ''} type="date" value={form.appointmentDate} onChange={(event) => handleChange('appointmentDate', event.target.value)} />
+              </label>
+              <label>
+                Canal de contacto
+                <select value={form.channel} onChange={(event) => handleChange('channel', event.target.value)}>
+                  <option value="WhatsApp">WhatsApp</option>
+                  <option value="Phone">Llamada</option>
+                  <option value="Internal">Mostrador</option>
+                </select>
+              </label>
+              <label className="span-two">
+                Observaciones para la atención
+                <textarea className={fieldErrors.notes ? 'input-error' : ''} rows={3} maxLength={500} value={form.notes} placeholder="Ejemplo: paciente solicita control, llega por WhatsApp, requiere confirmación telefónica..." onChange={(event) => handleChange('notes', event.target.value)} />
+              </label>
+            </div>
           </div>
 
           <div className="stack-sm">
-            <h3>Horarios disponibles</h3>
+            <h3>3. Selecciona una hora disponible</h3>
             <div className="slot-grid">
-              {slots.length === 0 && <div className="empty-state">Selecciona profesional y fecha para ver los horarios disponibles.</div>}
+              {slots.length === 0 && <div className="empty-state">Selecciona primero el profesional y la fecha. Luego aquí aparecerán las horas disponibles.</div>}
               {slots.map((slot) => (
                 <button
                   type="button"

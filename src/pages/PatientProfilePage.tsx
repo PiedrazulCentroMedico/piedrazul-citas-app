@@ -173,8 +173,8 @@ export function PatientProfilePage() {
       setPasswordMessage('Contraseña actualizada correctamente. En tu próximo ingreso usa la nueva contraseña.');
     } catch (error) {
       const text = error instanceof Error ? error.message : 'No fue posible cambiar la contraseña.';
-      setPasswordMessage(text);
-      setPasswordFieldErrors({ code: true, password: true });
+      setPasswordMessage(text.toLowerCase().includes('código') || text.toLowerCase().includes('codigo') ? 'El código temporal no es correcto o ya venció. Genera uno nuevo e inténtalo otra vez.' : text);
+      setPasswordFieldErrors({ code: true });
     } finally {
       setPasswordSubmitting(false);
     }
@@ -295,25 +295,21 @@ export function PatientProfilePage() {
           <label>
             Código temporal
             <input className={passwordFieldErrors.code ? 'input-error' : ''} value={passwordForm.code} onChange={(event) => handlePasswordFieldChange('code', event.target.value)} />
+            <small className="helper-text">Si el código no coincide, se marcará este campo para que puedas corregirlo.</small>
           </label>
           <label>
             Nueva contraseña
-            <input className={passwordFieldErrors.password ? 'input-error' : ''} type={showPassword ? 'text' : 'password'} value={passwordForm.password} onChange={(event) => handlePasswordFieldChange('password', event.target.value)} />
+            <div className="password-input-row">
+              <input className={passwordFieldErrors.password ? 'input-error' : ''} type={showPassword ? 'text' : 'password'} value={passwordForm.password} onChange={(event) => handlePasswordFieldChange('password', event.target.value)} />
+              <button type="button" className="button button-secondary password-toggle-button" onClick={() => setShowPassword((current) => !current)}>{showPassword ? 'Ocultar' : 'Mostrar'}</button>
+            </div>
           </label>
           <label>
             Confirmar contraseña
-            <input className={passwordFieldErrors.confirmPassword ? 'input-error' : ''} type={showConfirmPassword ? 'text' : 'password'} value={passwordForm.confirmPassword} onChange={(event) => handlePasswordFieldChange('confirmPassword', event.target.value)} />
-          </label>
-        </div>
-
-        <div className="inline-actions wrap">
-          <label className="checkbox-inline">
-            <input type="checkbox" checked={showPassword} onChange={(event) => setShowPassword(event.target.checked)} />
-            <span>Mostrar nueva contraseña</span>
-          </label>
-          <label className="checkbox-inline">
-            <input type="checkbox" checked={showConfirmPassword} onChange={(event) => setShowConfirmPassword(event.target.checked)} />
-            <span>Mostrar confirmación</span>
+            <div className="password-input-row">
+              <input className={passwordFieldErrors.confirmPassword ? 'input-error' : ''} type={showConfirmPassword ? 'text' : 'password'} value={passwordForm.confirmPassword} onChange={(event) => handlePasswordFieldChange('confirmPassword', event.target.value)} />
+              <button type="button" className="button button-secondary password-toggle-button" onClick={() => setShowConfirmPassword((current) => !current)}>{showConfirmPassword ? 'Ocultar' : 'Mostrar'}</button>
+            </div>
           </label>
         </div>
 

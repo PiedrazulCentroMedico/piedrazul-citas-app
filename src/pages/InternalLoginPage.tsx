@@ -56,10 +56,13 @@ export function InternalLoginPage() {
             Contraseña
             <input type={showPassword ? 'text' : 'password'} autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} />
           </label>
-          <label className="checkbox-inline">
-            <input type="checkbox" checked={showPassword} onChange={(event) => setShowPassword(event.target.checked)} />
-            <span>Mostrar contraseña</span>
-          </label>
+          <div className="between wrap password-login-actions">
+            <label className="checkbox-inline">
+              <input type="checkbox" checked={showPassword} onChange={(event) => setShowPassword(event.target.checked)} />
+              <span>Mostrar contraseña</span>
+            </label>
+            <Link className="forgot-password-link" to="/olvide-mi-contrasena">Olvidé mi contraseña</Link>
+          </div>
 
           {message && <div className="feedback-card error">{message}</div>}
 
@@ -72,7 +75,11 @@ export function InternalLoginPage() {
               <strong>Credenciales de prueba</strong>
               <span className="muted-text">Administrador: admin@piedrazul.local / Admin123*</span>
               <span className="muted-text">Agendador: agenda@piedrazul.local / Agenda123*</span>
-              <span className="muted-text">Profesional: medico@piedrazul.local / Medico123*</span>
+              <span className="muted-text">Profesional general: medico@piedrazul.local / Medico123*</span>
+              <span className="muted-text">Ana Gómez: ana@piedrazul.local / Ana123*</span>
+              <span className="muted-text">Laura Rivera: laura@piedrazul.local / Laura123*</span>
+              <span className="muted-text">Carlos Martínez: carlos@piedrazul.local / Carlos123*</span>
+              <span className="muted-text">Andres Vega: andres@piedrazul.local / Andres123*</span>
             </div>
           )}
 

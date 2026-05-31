@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { apiRequest } from '../api/http';
 import { useAuth } from '../auth/AuthContext';
 import { PortalTabs } from '../components/PortalTabs';
-import type { AppointmentListResponse, AppointmentResponse, AppointmentStatusValue, ProviderSummary } from '../types';
-import { getLinkedProviderId } from '../utils/sessionStorage';
+import type { AppointmentHistoryResponse, AppointmentListResponse, AppointmentResponse, AppointmentStatusValue, AvailabilitySlot, PatientLookup, ProviderSummary } from '../types';
+import { getLinkedProviderId, linkDefaultSeededDoctors } from '../utils/sessionStorage';
 import { formatDateLabel, hasSettingsAccess, isDoctorRole } from '../utils/validators';
 import { canTransitionStatus, hasAppointmentStarted, isTerminalStatus, translateStatusLabel } from '../utils/status';
 
@@ -124,18 +124,40 @@ function buildDateOptions(offset: number) {
   });
 }
 
-function pdfHexText(value: string) {
-  const normalized = value.normalize('NFC');
-  let hex = 'FEFF';
-  for (let index = 0; index < normalized.length; index += 1) {
-    hex += normalized.charCodeAt(index).toString(16).padStart(4, '0').toUpperCase();
-  }
-  return `<${hex}>`;
+
+function normalizeSpecialty(value: string) {
+  return value.normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
 }
+
+const FIXED_SPECIALTY_OPTIONS = [
+  { key: 'medicina general', label: 'Medicina General' },
+  { key: 'psicologia', label: 'Psicología' },
+  { key: 'terapia fisica', label: 'Terapia Física' },
+  { key: 'quiropractico', label: 'Quiropráctico' },
+];
+
+function buildSpecialtyOptions() {
+  return FIXED_SPECIALTY_OPTIONS;
+}
+
+function buildUniqueSpecialties(_providers: ProviderSummary[]) {
+  return buildSpecialtyOptions();
+}
+
+function pdfSafeText(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\x20-\x7E]/g, '')
+    .replace(/\\/g, '\\\\')
+    .replace(/\(/g, '\\(')
+    .replace(/\)/g, '\\)');
+}
+
 
 function buildSimplePdf(providerName: string, specialty: string, label: string, items: AppointmentResponse[]) {
   const text = (value: string, x: number, y: number, size = 10, font = 'F1') =>
-    `BT /${font} ${size} Tf ${x} ${y} Td ${pdfHexText(value)} Tj ET`;
+    `BT /${font} ${size} Tf ${x} ${y} Td (${pdfSafeText(value)}) Tj ET`;
   const rect = (x: number, y: number, width: number, height: number, fill = '0.96 0.98 1 rg') =>
     `q ${fill} ${x} ${y} ${width} ${height} re f Q`;
   const stroke = (x: number, y: number, width: number, height: number) =>
@@ -216,11 +238,13 @@ function getDatesInRange(start: string, end: string) {
   return dates;
 }
 
-export function InternalAppointmentsPage() {
+export function InternalAppointmentsPage({ mode = 'list' }: { mode?: 'list' | 'reschedule' }) {
   const { session } = useAuth();
   const isDoctor = isDoctorRole(session?.roles ?? []);
   const canManageUsers = session?.roles.includes('Admin') ?? false;
   const [providers, setProviders] = useState<ProviderSummary[]>([]);
+  const [selectedSpecialtyKey, setSelectedSpecialtyKey] = useState('');
+  const [toastModal, setToastModal] = useState<string | null>(null);
   const [providerId, setProviderId] = useState('');
   const [date, setDate] = useState(toLocalDateInputValue(new Date()));
   const [dateOffset, setDateOffset] = useState(0);
@@ -232,10 +256,23 @@ export function InternalAppointmentsPage() {
   const [loading, setLoading] = useState(false);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [draftStatuses, setDraftStatuses] = useState<Record<string, AppointmentStatusValue>>({});
+  const [patientSearch, setPatientSearch] = useState('');
+  const [patientMatches, setPatientMatches] = useState<PatientLookup[]>([]);
+  const [patientAppointments, setPatientAppointments] = useState<AppointmentResponse[]>([]);
+  const [selectedReschedule, setSelectedReschedule] = useState<AppointmentResponse | null>(null);
+  const [rescheduleForm, setRescheduleForm] = useState({ date: toLocalDateInputValue(new Date()), startTime: '', reason: '' });
+  const [rescheduleSlots, setRescheduleSlots] = useState<AvailabilitySlot[]>([]);
+  const [rescheduleLoading, setRescheduleLoading] = useState(false);
+  const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
+  const [historyByAppointment, setHistoryByAppointment] = useState<Record<string, AppointmentHistoryResponse[]>>({});
+  const [historyLoadingId, setHistoryLoadingId] = useState<string | null>(null);
 
   const tabs = useMemo(() => {
     const base = [{ to: '/portal/interno/citas', label: isDoctor ? 'Mis citas' : 'Listado de citas' }];
-    if (!isDoctor) base.push({ to: '/portal/interno/nueva-cita', label: 'Nueva cita' });
+    if (!isDoctor) {
+      base.push({ to: '/portal/interno/nueva-cita', label: 'Nueva cita' });
+      base.push({ to: '/portal/interno/reagendar', label: 'Reagendar paciente' });
+    }
     if (canManageUsers) base.push({ to: '/portal/interno/usuarios', label: 'Usuarios' });
     if (hasSettingsAccess(session?.roles ?? [])) base.push({ to: '/portal/interno/configuracion', label: 'Configuración' });
     if (isDoctor) base.push({ to: '/portal/interno/perfil', label: 'Mi perfil' });
@@ -246,18 +283,37 @@ export function InternalAppointmentsPage() {
     if (!session) return;
     apiRequest<ProviderSummary[]>('/api/public/providers', session)
       .then((data) => {
-        const linkedProviderId = getLinkedProviderId(session.email);
-        const filtered = isDoctor && linkedProviderId ? data.filter((item) => item.id === linkedProviderId) : data;
+        linkDefaultSeededDoctors(data);
+        const refreshedLinkedProviderId = getLinkedProviderId(session.email);
+        const filtered = isDoctor && refreshedLinkedProviderId ? data.filter((item) => item.id === refreshedLinkedProviderId) : data;
         setProviders(filtered);
+        const specialties = buildUniqueSpecialties(filtered);
+        if (specialties[0]) setSelectedSpecialtyKey((current) => current || specialties[0].key);
         if (filtered[0]) setProviderId(filtered[0].id);
       })
       .catch((error: Error) => setMessage(error.message));
   }, [isDoctor, session]);
 
+  useEffect(() => {
+    const storedToast = window.sessionStorage.getItem('pz-internal-toast');
+    if (!storedToast) return;
+    window.sessionStorage.removeItem('pz-internal-toast');
+    setToastModal(storedToast);
+  }, []);
+
   const activeResults = useMemo(() => [...results].sort((a, b) => a.appointmentDate.localeCompare(b.appointmentDate)), [results]);
   const combinedItems = useMemo(() => activeResults.flatMap((r) => r.items).sort((a, b) => `${a.appointmentDate}${a.startTime}`.localeCompare(`${b.appointmentDate}${b.startTime}`)), [activeResults]);
   const selectedProvider = useMemo(() => providers.find((provider) => provider.id === providerId) ?? null, [providerId, providers]);
+  const specialtyOptions = useMemo(() => buildUniqueSpecialties(providers), [providers]);
+  const selectedSpecialtyKeySafe = selectedSpecialtyKey || normalizeSpecialty(selectedProvider?.specialty ?? specialtyOptions[0]?.label ?? '');
+  const filteredProviders = useMemo(() => providers.filter((provider) => normalizeSpecialty(provider.specialty) === selectedSpecialtyKeySafe), [providers, selectedSpecialtyKeySafe]);
   const dateOptions = useMemo(() => buildDateOptions(dateOffset), [dateOffset]);
+
+  const handleSpecialtySelected = (specialtyKey: string) => {
+    setSelectedSpecialtyKey(specialtyKey);
+    const firstProvider = providers.find((provider) => normalizeSpecialty(provider.specialty) === specialtyKey);
+    if (firstProvider) setProviderId(firstProvider.id);
+  };
 
   const hydrateDraftStatuses = (items: AppointmentResponse[]) => {
     setDraftStatuses(Object.fromEntries(items.map((appointment) => [appointment.id, translateStatusLabel(appointment.status) as AppointmentStatusValue])));
@@ -289,8 +345,101 @@ export function InternalAppointmentsPage() {
   };
 
   useEffect(() => {
-    if (providerId) void searchAppointments();
-  }, [providerId]);
+    if (mode === 'list' && providerId) void searchAppointments();
+  }, [providerId, mode]);
+
+  useEffect(() => {
+    if (!selectedReschedule || !rescheduleForm.date) {
+      setRescheduleSlots([]);
+      return;
+    }
+
+    apiRequest<AvailabilitySlot[]>(`/api/public/providers/${selectedReschedule.providerId}/availability?date=${encodeURIComponent(rescheduleForm.date)}`, null)
+      .then((data) => setRescheduleSlots(data.filter((slot) => slot.available)))
+      .catch(() => setRescheduleSlots([]));
+  }, [rescheduleForm.date, selectedReschedule]);
+
+  const searchPatientAppointments = async () => {
+    const term = patientSearch.trim();
+    if (term.length < 3) {
+      setMessage('Escribe al menos 3 dígitos o letras para buscar el paciente.');
+      return;
+    }
+
+    try {
+      setRescheduleLoading(true);
+      setMessage(null);
+      const patients = await apiRequest<PatientLookup[]>(`/api/internal/patients/search?document=${encodeURIComponent(term)}`, session);
+      setPatientMatches(patients);
+      const document = patients[0]?.documentNumber ?? term;
+      const appointments = await apiRequest<AppointmentResponse[]>(`/api/internal/appointments/by-document?document=${encodeURIComponent(document)}`, session);
+      setPatientAppointments(appointments);
+      setSelectedReschedule(null);
+    } catch (error) {
+      setPatientMatches([]);
+      setPatientAppointments([]);
+      setMessage(error instanceof Error ? error.message : 'No fue posible buscar las citas del paciente.');
+    } finally {
+      setRescheduleLoading(false);
+    }
+  };
+
+  const startReschedule = (appointment: AppointmentResponse) => {
+    setSelectedReschedule(appointment);
+    setRescheduleForm({ date: appointment.appointmentDate, startTime: '', reason: '' });
+    setMessage(null);
+  };
+
+  const toggleAppointmentHistory = async (appointmentId: string) => {
+    if (expandedHistoryId === appointmentId) {
+      setExpandedHistoryId(null);
+      return;
+    }
+
+    setExpandedHistoryId(appointmentId);
+    if (historyByAppointment[appointmentId]) return;
+
+    try {
+      setHistoryLoadingId(appointmentId);
+      const history = await apiRequest<AppointmentHistoryResponse[]>(`/api/internal/appointments/${appointmentId}/history`, session);
+      setHistoryByAppointment((current) => ({ ...current, [appointmentId]: history }));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'No fue posible consultar el historial de reagendamiento.');
+    } finally {
+      setHistoryLoadingId(null);
+    }
+  };
+
+
+  const confirmInternalReschedule = async () => {
+    if (!selectedReschedule) return;
+    if (!rescheduleForm.date || !rescheduleForm.startTime) {
+      setMessage('Selecciona la nueva fecha y una hora disponible.');
+      return;
+    }
+
+    try {
+      setRescheduleLoading(true);
+      setMessage(null);
+      const updated = await apiRequest<AppointmentResponse>(`/api/internal/appointments/${selectedReschedule.id}/reschedule`, session, {
+        method: 'PUT',
+        body: {
+          appointmentId: selectedReschedule.id,
+          newDate: rescheduleForm.date,
+          newStartTime: rescheduleForm.startTime,
+          reason: rescheduleForm.reason.trim() || 'Reagendamiento realizado desde el portal interno.',
+        },
+      });
+      setPatientAppointments((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+      setResults((current) => current.map((result) => ({ ...result, items: result.items.map((item) => (item.id === updated.id ? updated : item)) })));
+      setSelectedReschedule(null);
+      setMessage('Cita reagendada correctamente.');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'No fue posible reagendar la cita.');
+    } finally {
+      setRescheduleLoading(false);
+    }
+  };
 
   const buildCurrentPdfBlob = async () => {
     if (!providerId) return null;
@@ -388,13 +537,14 @@ export function InternalAppointmentsPage() {
   return (
     <div className="stack-lg">
       <section className="section-card">
-        <h1>{isDoctor ? 'Mis citas programadas' : 'Listado de citas por profesional y fecha'}</h1>
-        <p className="muted-text">{isDoctor ? 'Consulta tus citas asignadas, actualiza el estado cuando corresponda y exporta el listado del día.' : 'Busca rápidamente las citas programadas y revisa el total del día.'}</p>
+        <h1>{mode === 'reschedule' ? 'Reagendar por paciente' : isDoctor ? 'Mis citas programadas' : 'Listado de citas por profesional y fecha'}</h1>
+        <p className="muted-text">{mode === 'reschedule' ? 'Busca un paciente y cambia fecha u hora de una cita programada.' : isDoctor ? 'Consulta tus citas asignadas, actualiza el estado cuando corresponda y exporta el listado del día.' : 'Busca rápidamente las citas programadas y revisa el total del día.'}</p>
       </section>
 
       <PortalTabs items={tabs} />
 
-      <section className="section-card stack-md">
+      {mode === 'list' && (
+      <section className="section-card stack-md internal-search-card">
         <div className="inline-actions wrap range-toggle-row">
           <label className="checkbox-inline range-toggle-card">
             <input type="checkbox" checked={useDateRange} onChange={(event) => setUseDateRange(event.target.checked)} />
@@ -402,25 +552,39 @@ export function InternalAppointmentsPage() {
           </label>
         </div>
         <div className="form-grid internal-filter-grid">
+          {!isDoctor && (
+            <div className="span-two stack-sm">
+              <strong>Tipo de profesional</strong>
+              <div className="specialty-choice-grid compact-choice-grid" role="group" aria-label="Tipo de profesional">
+                {specialtyOptions.map((specialty) => (
+                  <button key={specialty.key} type="button" className={`choice-card ${selectedSpecialtyKeySafe === specialty.key ? 'selected' : ''}`} onClick={() => handleSpecialtySelected(specialty.key)}>
+                    <span className="choice-check">{selectedSpecialtyKeySafe === specialty.key ? '✓' : ''}</span>
+                    <strong>{specialty.label}</strong>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <label>
             Profesional
             <select value={providerId} onChange={(event) => setProviderId(event.target.value)} disabled={isDoctor}>
               <option value="">Selecciona una opción</option>
-              {providers.map((provider) => (
-                <option key={provider.id} value={provider.id}>{provider.specialty} - {provider.fullName}</option>
+              {(isDoctor ? providers : filteredProviders).map((provider) => (
+                <option key={provider.id} value={provider.id}>{provider.fullName}</option>
               ))}
             </select>
           </label>
 
           {!useDateRange ? (
-            <div className="span-two stack-sm">
+            <div className="span-all stack-sm date-filter-area">
               <strong>Fecha</strong>
               <div className="date-strip" aria-label="Seleccionar fecha de consulta">
                 <button type="button" className="date-strip-arrow" onClick={() => setDateOffset((current) => Math.max(0, current - 7))} disabled={dateOffset === 0} aria-label="Ver semana anterior">‹</button>
                 <div className="date-strip-days">
                   {dateOptions.map((dateOption) => (
                     <button key={dateOption.value} type="button" className={`date-option ${date === dateOption.value ? 'selected' : ''}`} onClick={() => setDate(dateOption.value)}>
-                      {dateOption.label.split(' ').map((part) => (<strong key={part}>{part}</strong>))}
+                      {dateOption.label.split(' ').map((part) => (<span key={part}>{part}</span>))}
                     </button>
                   ))}
                 </div>
@@ -450,11 +614,156 @@ export function InternalAppointmentsPage() {
           </div>
         </div>
       </section>
+      )}
+
+      {!isDoctor && mode === 'reschedule' && (
+        <section className="section-card stack-md">
+          <div className="section-header between wrap">
+            <div>
+              <h2>Reagendar por paciente</h2>
+              <p className="muted-text">Busca el paciente por documento o nombre y selecciona una cita programada para cambiarle fecha y hora.</p>
+            </div>
+          </div>
+          <div className="internal-reschedule-grid">
+            <label>
+              Buscar paciente
+              <input value={patientSearch} onChange={(event) => setPatientSearch(event.target.value)} placeholder="Documento o nombre" />
+            </label>
+            <div className="inline-actions align-end">
+              <button type="button" className="button" onClick={() => void searchPatientAppointments()} disabled={rescheduleLoading}>{rescheduleLoading ? 'Buscando...' : 'Buscar paciente'}</button>
+            </div>
+          </div>
+
+          {patientMatches.length > 0 && (
+            <div className="lookup-list compact-list">
+              {patientMatches.map((patient) => (
+                <div key={patient.id} className="lookup-card">
+                  <strong>{patient.fullName}</strong>
+                  <span>{patient.documentNumber} · {patient.phone}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {patientAppointments.length > 0 && (
+            <div className="table-wrapper">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    <th>Hora</th>
+                    <th>Paciente</th>
+                    <th>Profesional</th>
+                    <th>Estado</th>
+                    <th>Acción</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {patientAppointments.map((appointment) => {
+                    const translatedStatus = translateStatusLabel(appointment.status);
+                    const cancelled = translatedStatus === 'Cancelada';
+                    const history = historyByAppointment[appointment.id] ?? [];
+                    const isHistoryOpen = expandedHistoryId === appointment.id;
+                    return (
+                      <Fragment key={appointment.id}>
+                        <tr className={cancelled ? 'appointment-row-cancelled' : ''}>
+                          <td>{formatDateLabel(appointment.appointmentDate)}</td>
+                          <td>{appointment.startTime} - {appointment.endTime}</td>
+                          <td>{appointment.patientFullName}</td>
+                          <td>{appointment.providerName}</td>
+                          <td>{translatedStatus}</td>
+                          <td>
+                            <div className="inline-actions wrap compact-actions">
+                              <button type="button" className="button button-secondary" onClick={() => startReschedule(appointment)} disabled={cancelled}>
+                                {cancelled ? 'No reagendable' : 'Reagendar'}
+                              </button>
+                              <button type="button" className="button button-ghost" onClick={() => void toggleAppointmentHistory(appointment.id)}>
+                                {isHistoryOpen ? 'Ocultar historial' : 'Ver historial'}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                        {isHistoryOpen && (
+                          <tr className="history-row">
+                            <td colSpan={6}>
+                              <div className="history-panel">
+                                <strong>Historial de reagendamiento</strong>
+                                {historyLoadingId === appointment.id ? (
+                                  <p className="muted-text">Consultando historial...</p>
+                                ) : history.length === 0 ? (
+                                  <p className="muted-text">Esta cita no tiene reagendamientos registrados.</p>
+                                ) : (
+                                  <div className="history-list">
+                                    <div className="summary-badge">Número de reagendamientos: {history.length}</div>
+                                    {history.map((item, index) => (
+                                      <div key={`${item.changedAtUtc}-${index}`} className="history-card">
+                                        <strong>Reagendamiento #{index + 1}</strong>
+                                        <span>De {formatDateLabel(item.previousDate)} · {item.previousStartTime} - {item.previousEndTime}</span>
+                                        <span>A {formatDateLabel(item.newDate)} · {item.newStartTime} - {item.newEndTime}</span>
+                                        <span>Responsable: {item.changedBy}</span>
+                                        <span>Motivo: {item.reason || 'Sin motivo registrado'}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {selectedReschedule && (
+            <div className="notice-card stack-md">
+              <strong>Reagendando cita de {selectedReschedule.patientFullName}</strong>
+              <div className="form-grid internal-filter-grid">
+                <label>
+                  Nueva fecha
+                  <input type="date" value={rescheduleForm.date} onChange={(event) => setRescheduleForm((current) => ({ ...current, date: event.target.value, startTime: '' }))} />
+                </label>
+                <label>
+                  Hora disponible
+                  <select value={rescheduleForm.startTime} onChange={(event) => setRescheduleForm((current) => ({ ...current, startTime: event.target.value }))}>
+                    <option value="">Selecciona una hora</option>
+                    {rescheduleSlots.map((slot) => <option key={slot.startTime} value={slot.startTime}>{slot.startTime} - {slot.endTime}</option>)}
+                  </select>
+                </label>
+                <label className="span-all">
+                  Motivo del reagendamiento
+                  <textarea rows={3} value={rescheduleForm.reason} onChange={(event) => setRescheduleForm((current) => ({ ...current, reason: event.target.value }))} placeholder="Ejemplo: paciente solicita cambio de horario." />
+                </label>
+                <div className="inline-actions align-end wrap">
+                  <button type="button" className="button" onClick={() => void confirmInternalReschedule()} disabled={rescheduleLoading}>Confirmar reagendamiento</button>
+                  <button type="button" className="button button-secondary" onClick={() => setSelectedReschedule(null)}>Cancelar</button>
+                </div>
+              </div>
+            </div>
+          )}
+        </section>
+      )}
+
+      {toastModal && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true">
+          <section className="modal-card compact-modal stack-md">
+            <span className="eyebrow">Configuración guardada</span>
+            <h2>{toastModal}</h2>
+            <p className="muted-text">Ya estás nuevamente en el portal interno.</p>
+            <div className="inline-actions end">
+              <button type="button" className="button" onClick={() => setToastModal(null)}>Entendido</button>
+            </div>
+          </section>
+        </div>
+      )}
 
       {message && <div className={`feedback-card ${message.includes('correctamente') ? 'success' : 'error'}`}>{message}</div>}
       {loading && <div className="loading-card">Consultando citas...</div>}
 
-      {!loading && activeResults.length > 0 && (
+      {mode === 'list' && !loading && activeResults.length > 0 && (
         <section className="section-card stack-md">
           <div className="section-header between wrap">
             <div>
@@ -489,7 +798,7 @@ export function InternalAppointmentsPage() {
                     const selectedStatus = draftStatuses[appointment.id] ?? (translatedStatus as AppointmentStatusValue);
                     const canSaveStatus = canTransitionStatus(appointment.status, selectedStatus, appointment.appointmentDate, appointment.startTime);
                     return (
-                      <tr key={appointment.id}>
+                      <tr key={appointment.id} className={translatedStatus === 'Cancelada' ? 'appointment-row-cancelled' : ''}>
                         {useDateRange && <td>{formatDateLabel(appointment.appointmentDate)}</td>}
                         <td>{appointment.startTime} - {appointment.endTime}</td>
                         <td>{appointment.patientFullName}</td>
