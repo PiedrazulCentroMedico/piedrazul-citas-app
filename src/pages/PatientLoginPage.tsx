@@ -6,7 +6,7 @@ export function PatientLoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { authMode, login, loginWithCredentials } = useAuth();
-  const [documentNumber, setDocumentNumber] = useState('');
+  const [documentNumber, setDocumentNumber] = useState(() => ((location.state as { documentNumber?: string } | undefined)?.documentNumber ?? ''));
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -72,7 +72,6 @@ export function PatientLoginPage() {
           <div className="auth-links">
             <Link to="/olvide-mi-contrasena">Olvidé mi contraseña</Link>
             <Link to="/crear-cuenta">Crear cuenta</Link>
-            <Link to="/consultar-citas">Consultar citas por cédula</Link>
           </div>
         </form>
       </section>

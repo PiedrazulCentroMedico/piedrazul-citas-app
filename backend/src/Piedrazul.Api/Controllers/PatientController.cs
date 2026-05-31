@@ -44,6 +44,22 @@ public sealed class PatientController(
         return result.Succeeded && result.Data is not null ? Ok(result.Data) : FromFailure(result);
     }
 
+
+    [HttpPut("appointments/{appointmentId:guid}/reschedule")]
+    public async Task<ActionResult<AppointmentResponse>> RescheduleMyAppointment(Guid appointmentId, [FromBody] RescheduleAppointmentRequest request, CancellationToken cancellationToken)
+    {
+        var myAppointments = await _patientService.GetMyAppointmentsAsync(User.GetSubject(), cancellationToken);
+        if (!myAppointments.Succeeded || myAppointments.Data is null)
+            return FromFailure(myAppointments);
+
+        if (!myAppointments.Data.Any(appointment => appointment.Id == appointmentId))
+            return Conflict(new { errors = new[] { "No tienes permisos para reprogramar esta cita." } });
+
+        var normalizedRequest = request with { AppointmentId = appointmentId };
+        var result = await _lifecycle.RescheduleAppointmentAsync(normalizedRequest, User.GetSubject(), cancellationToken);
+        return result.Succeeded && result.Data is not null ? Ok(result.Data) : FromFailure(result);
+    }
+
     [HttpPatch("appointments/{appointmentId:guid}/cancel")]
     public async Task<ActionResult<AppointmentResponse>> CancelMyAppointment(Guid appointmentId, CancellationToken cancellationToken)
     {

@@ -73,7 +73,8 @@ namespace Piedrazul.Infrastructure.Persistence.Migrations
                     b.HasIndex("PatientProfileId");
 
                     b.HasIndex("ProviderId", "AppointmentDate", "StartTime")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("\"Status\" = 'Scheduled'");
 
                     b.ToTable("appointments", (string)null);
                 });

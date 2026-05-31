@@ -7,6 +7,7 @@ internal static class AppointmentMapper
     internal static AppointmentResponse ToResponse(Appointment appointment) =>
         new(
             appointment.Id,
+            appointment.ProviderId,
             appointment.Provider?.DisplayName ?? string.Empty,
             appointment.Provider?.Specialty ?? string.Empty,
             appointment.PatientProfile?.FullName ?? string.Empty,

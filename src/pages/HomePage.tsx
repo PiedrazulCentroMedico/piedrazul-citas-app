@@ -93,6 +93,37 @@ export function HomePage() {
 
   return (
     <div className="stack-lg home-page">
+
+      <section className="hero-card hero-card-enhanced hero-card-brand">
+        <div className="hero-copy">
+          <span className="eyebrow">Centro médico · Reserva en línea</span>
+          <h1>{info.name}</h1>
+          <p className="hero-text">{info.tagline}</p>
+          <p className="muted-text">{info.about}</p>
+          <div className="hero-actions">
+            <Link className="button" to="/reservar">
+              Reservar cita
+            </Link>
+            {!hasPatientSession && (
+              <Link className="button button-secondary" to="/iniciar-sesion">
+                Iniciar sesión
+              </Link>
+            )}
+          </div>
+
+          <div className="info-strip info-strip-single">
+            <div className="info-chip large">
+              <strong>Horario de atención</strong>
+              <span>{info.attentionHours}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="hero-visual hero-logo-card">
+          <img src={logoImage} alt="Logo de Piedrazul Centro Médico Alternativo" />
+        </div>
+      </section>
+
       <section className="section-card who-we-are-section">
         <div className="section-heading between carousel-heading">
           <div>
@@ -132,40 +163,6 @@ export function HomePage() {
               ))}
             </div>
           </div>
-        </div>
-      </section>
-
-
-      <section className="hero-card hero-card-enhanced hero-card-brand">
-        <div className="hero-copy">
-          <span className="eyebrow">Centro médico · Reserva en línea</span>
-          <h1>{info.name}</h1>
-          <p className="hero-text">{info.tagline}</p>
-          <p className="muted-text">{info.about}</p>
-          <div className="hero-actions">
-            <Link className="button" to="/reservar">
-              Reservar cita
-            </Link>
-            <Link className="button button-secondary" to="/consultar-citas">
-              Consultar citas
-            </Link>
-            {!hasPatientSession && (
-              <Link className="button button-secondary" to="/iniciar-sesion">
-                Iniciar sesión
-              </Link>
-            )}
-          </div>
-
-          <div className="info-strip info-strip-single">
-            <div className="info-chip large">
-              <strong>Horario de atención</strong>
-              <span>{info.attentionHours}</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="hero-visual hero-logo-card">
-          <img src={logoImage} alt="Logo de Piedrazul Centro Médico Alternativo" />
         </div>
       </section>
 

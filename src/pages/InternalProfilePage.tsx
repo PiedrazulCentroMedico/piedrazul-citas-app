@@ -3,7 +3,7 @@ import { apiRequest } from '../api/http';
 import { useAuth } from '../auth/AuthContext';
 import { PortalTabs } from '../components/PortalTabs';
 import type { ProviderSchedule, ProviderSchedulePayload } from '../types';
-import { getLinkedProviderId } from '../utils/sessionStorage';
+import { getLinkedProviderId, linkDefaultSeededDoctors } from '../utils/sessionStorage';
 import { sanitizeNameInput } from '../utils/validators';
 
 export function InternalProfilePage() {
@@ -11,6 +11,7 @@ export function InternalProfilePage() {
   const [schedule, setSchedule] = useState<ProviderSchedule | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, boolean>>({});
   const [form, setForm] = useState({ firstName: '', lastName: '', specialty: '', defaultSlotIntervalMinutes: 30 });
 
   const tabs = useMemo(() => ([
@@ -21,14 +22,15 @@ export function InternalProfilePage() {
 
   useEffect(() => {
     if (!session) return;
-    const linkedProviderId = getLinkedProviderId(session.email);
-    if (!linkedProviderId) {
-      setMessage('No encontramos un perfil profesional asociado a tu cuenta. Pide al administrador que te vincule a un profesional.');
-      return;
-    }
 
     apiRequest<ProviderSchedule[]>('/api/admin/provider-schedules', session)
       .then((items) => {
+        linkDefaultSeededDoctors(items);
+        const linkedProviderId = getLinkedProviderId(session.email);
+        if (!linkedProviderId) {
+          setMessage('No encontramos un perfil profesional asociado a tu cuenta. Pide al administrador que te vincule a un profesional.');
+          return;
+        }
         const found = items.find((item) => item.providerId === linkedProviderId) ?? null;
         if (!found) {
           setMessage('No encontramos tu perfil profesional en el sistema.');
@@ -46,8 +48,25 @@ export function InternalProfilePage() {
       .catch((error: Error) => setMessage(error.message));
   }, [session]);
 
+  const updateForm = (field: keyof typeof form, value: string | number) => {
+    setForm((current) => ({ ...current, [field]: value }));
+    setMessage(null);
+    setFieldErrors((current) => ({ ...current, [field]: false }));
+  };
+
   const saveProfile = async () => {
     if (!schedule) return;
+    const nextErrors = {
+      firstName: form.firstName.trim().length < 2,
+      lastName: form.lastName.trim().length < 2,
+      specialty: form.specialty.trim().length < 2,
+    };
+    setFieldErrors(nextErrors);
+    if (Object.values(nextErrors).some(Boolean)) {
+      setMessage('Revisa los campos señalados en rojo. Nombres, apellidos y especialidad son obligatorios.');
+      return;
+    }
+
     try {
       setSubmitting(true);
       const payload: ProviderSchedulePayload = {
@@ -63,6 +82,7 @@ export function InternalProfilePage() {
       });
       setSchedule(result);
       setMessage('Tu perfil profesional fue actualizado correctamente.');
+      setFieldErrors({});
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'No pudimos guardar tu perfil profesional.');
     } finally {
@@ -91,15 +111,15 @@ export function InternalProfilePage() {
           </label>
           <label>
             Nombres
-            <input value={form.firstName} onChange={(event) => setForm((current) => ({ ...current, firstName: sanitizeNameInput(event.target.value) }))} />
+            <input className={fieldErrors.firstName ? 'input-error' : ''} value={form.firstName} onChange={(event) => updateForm('firstName', sanitizeNameInput(event.target.value))} />
           </label>
           <label>
             Apellidos
-            <input value={form.lastName} onChange={(event) => setForm((current) => ({ ...current, lastName: sanitizeNameInput(event.target.value) }))} />
+            <input className={fieldErrors.lastName ? 'input-error' : ''} value={form.lastName} onChange={(event) => updateForm('lastName', sanitizeNameInput(event.target.value))} />
           </label>
           <label>
             Especialidad
-            <input value={form.specialty} onChange={(event) => setForm((current) => ({ ...current, specialty: event.target.value }))} />
+            <input className={fieldErrors.specialty ? 'input-error' : ''} value={form.specialty} onChange={(event) => updateForm('specialty', event.target.value)} />
           </label>
         </div>
 

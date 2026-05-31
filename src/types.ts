@@ -40,6 +40,7 @@ export interface AvailabilitySlot {
 
 export interface AppointmentResponse {
   id: string;
+  providerId: string;
   providerName: string;
   specialty: string;
   patientFullName: string;
@@ -51,6 +52,20 @@ export interface AppointmentResponse {
   status: string;
   channel: string;
   notes?: string | null;
+}
+
+
+export interface AppointmentHistoryResponse {
+  appointmentId: string;
+  previousDate: string;
+  previousStartTime: string;
+  previousEndTime: string;
+  newDate: string;
+  newStartTime: string;
+  newEndTime: string;
+  reason?: string | null;
+  changedBy: string;
+  changedAtUtc: string;
 }
 
 export interface AppointmentListResponse {
@@ -125,6 +140,7 @@ export interface PatientPublicLookup {
   maskedPhone?: string;
   maskedEmail?: string;
   birthYear?: number;
+  hasUserAccount?: boolean;
   mustRegister: boolean;
   lastGuestAppointmentDate?: string | null;
   lastGuestAppointmentType?: string | null;

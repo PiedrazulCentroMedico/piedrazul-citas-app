@@ -12,6 +12,10 @@ const tabs = [
   { to: '/portal/paciente/perfil', label: 'Mi perfil' },
 ];
 
+function isCancelledAppointment(appointment: AppointmentResponse) {
+  return translateStatusLabel(appointment.status) === 'Cancelada';
+}
+
 function canCancelAppointment(appointment: AppointmentResponse) {
   if (translateStatusLabel(appointment.status) !== 'Programada') return false;
   const start = new Date(`${appointment.appointmentDate}T${appointment.startTime}:00`);
@@ -88,7 +92,6 @@ export function PatientDashboardPage() {
           <div className="inline-actions wrap">
             <Link className="button" to="/reservar">Reservar nueva cita</Link>
             <Link className="button button-secondary" to="/portal/paciente/perfil">Actualizar perfil</Link>
-            <Link className="button button-secondary" to="/consultar-citas">Consultar por cédula</Link>
           </div>
         </article>
       </section>
@@ -116,7 +119,7 @@ export function PatientDashboardPage() {
                 {appointments.map((appointment) => {
                   const cancellable = canCancelAppointment(appointment);
                   return (
-                    <tr key={appointment.id}>
+                    <tr key={appointment.id} className={isCancelledAppointment(appointment) ? 'appointment-row-cancelled' : undefined}>
                       <td>{formatDateLabel(appointment.appointmentDate)}</td>
                       <td>{appointment.startTime} - {appointment.endTime}</td>
                       <td>{appointment.providerName}</td>

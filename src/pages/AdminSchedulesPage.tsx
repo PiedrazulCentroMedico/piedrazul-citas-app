@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { apiRequest } from '../api/http';
 import { useAuth } from '../auth/AuthContext';
 import { PortalTabs } from '../components/PortalTabs';
 import type { CreateDoctorPayload, ProviderSchedule, ProviderSchedulePayload, SystemSettings, WeeklyAvailability } from '../types';
-import { linkDoctorToProvider, getLinkedProviderId } from '../utils/sessionStorage';
+import { linkDoctorToProvider, getLinkedProviderId, linkDefaultSeededDoctors } from '../utils/sessionStorage';
 import { hasSettingsAccess, isDoctorRole, sanitizeNameInput, validateAvailabilityEntries, validateStrongPassword } from '../utils/validators';
 
 const dayOptions = [
@@ -68,6 +69,7 @@ function normalizeSchedule(schedule: ProviderSchedule): ProviderSchedule {
 }
 
 export function AdminSchedulesPage() {
+  const navigate = useNavigate();
   const { session, createInternalDemoAccount } = useAuth();
   const isDoctor = isDoctorRole(session?.roles ?? []);
   const [settings, setSettings] = useState<SystemSettings>({ weeksAheadBooking: 6, timeZoneId: 'America/Bogota' });
@@ -81,13 +83,20 @@ export function AdminSchedulesPage() {
     weeklyAvailabilities: [emptyAvailability()],
   });
   const [doctorForm, setDoctorForm] = useState<CreateDoctorPayload>(emptyDoctorForm());
-  const [settingsMessage, setSettingsMessage] = useState<string | null>(null);
   const [providerMessage, setProviderMessage] = useState<string | null>(null);
   const [doctorMessage, setDoctorMessage] = useState<string | null>(null);
+  const [settingsErrors, setSettingsErrors] = useState<Record<string, boolean>>({});
+  const [providerErrors, setProviderErrors] = useState<Record<string, boolean>>({});
+  const [doctorErrors, setDoctorErrors] = useState<Record<string, boolean>>({});
+  const [configurationStep, setConfigurationStep] = useState<'create' | 'availability'>('availability');
+  const [showDoctorPassword, setShowDoctorPassword] = useState(false);
 
   const tabs = useMemo(() => {
     const items = [{ to: '/portal/interno/citas', label: isDoctor ? 'Mis citas' : 'Listado de citas' }];
-    if (!isDoctor) items.push({ to: '/portal/interno/nueva-cita', label: 'Nueva cita' });
+    if (!isDoctor) {
+      items.push({ to: '/portal/interno/nueva-cita', label: 'Nueva cita' });
+      items.push({ to: '/portal/interno/reagendar', label: 'Reagendar paciente' });
+    }
     if (session?.roles.includes('Admin')) items.push({ to: '/portal/interno/usuarios', label: 'Usuarios' });
     if (hasSettingsAccess(session?.roles ?? [])) items.push({ to: '/portal/interno/configuracion', label: 'Configuración' });
     if (isDoctor) items.push({ to: '/portal/interno/perfil', label: 'Mi perfil' });
@@ -104,6 +113,7 @@ export function AdminSchedulesPage() {
       .then(([settingsData, schedulesData]) => {
         setSettings(settingsData);
         const normalizedSchedules = schedulesData.map(normalizeSchedule);
+        linkDefaultSeededDoctors(normalizedSchedules);
         setSchedules(normalizedSchedules);
         if (isDoctor) {
           const linked = getLinkedProviderId(session.email);
@@ -135,6 +145,7 @@ export function AdminSchedulesPage() {
   }, [selectedProvider]);
 
   const updateAvailability = (index: number, field: keyof WeeklyAvailability, value: string | boolean | number) => {
+    setProviderErrors({});
     setProviderForm((current) => ({
       ...current,
       weeklyAvailabilities: current.weeklyAvailabilities.map((item, itemIndex) => itemIndex === index ? { ...item, [field]: value } : item),
@@ -143,15 +154,21 @@ export function AdminSchedulesPage() {
   };
 
   const saveSettings = async () => {
+    setSettingsErrors({});
+    if (!Number.isInteger(settings.weeksAheadBooking) || settings.weeksAheadBooking < 1 || settings.weeksAheadBooking > 24) {
+      setSettingsErrors({ weeksAheadBooking: true });
+      setProviderMessage('Las semanas habilitadas deben estar entre 1 y 24.');
+      return;
+    }
     try {
       const result = await apiRequest<SystemSettings>('/api/admin/settings', session, {
         method: 'PUT',
         body: settings,
       });
       setSettings(result);
-      setSettingsMessage('Los parámetros generales se guardaron correctamente.');
+      setProviderMessage('Las semanas habilitadas se guardaron correctamente.');
     } catch (error) {
-      setSettingsMessage(error instanceof Error ? error.message : 'No pudimos guardar la configuración general.');
+      setProviderMessage(error instanceof Error ? error.message : 'No pudimos guardar las semanas habilitadas.');
     }
   };
 
@@ -161,8 +178,14 @@ export function AdminSchedulesPage() {
       return;
     }
 
-    if (!providerForm.firstName.trim() || !providerForm.lastName.trim()) {
-      setProviderMessage('Los nombres y apellidos del profesional son obligatorios.');
+    const profileErrors = {
+      firstName: providerForm.firstName.trim().length < 2,
+      lastName: providerForm.lastName.trim().length < 2,
+      specialty: providerForm.specialty.trim().length < 2,
+    };
+    setProviderErrors(profileErrors);
+    if (Object.values(profileErrors).some(Boolean)) {
+      setProviderMessage('Los nombres, apellidos y especialidad del profesional son obligatorios.');
       return;
     }
 
@@ -173,6 +196,7 @@ export function AdminSchedulesPage() {
 
     const availabilityErrors = validateAvailabilityEntries(providerForm.weeklyAvailabilities);
     if (availabilityErrors.length > 0) {
+      setProviderErrors((current) => ({ ...current, weeklyAvailabilities: true }));
       setProviderMessage(availabilityErrors[0]);
       return;
     }
@@ -204,7 +228,8 @@ export function AdminSchedulesPage() {
         defaultSlotIntervalMinutes: payload.defaultSlotIntervalMinutes,
         weeklyAvailabilities: payload.weeklyAvailabilities.map((item) => ({ ...item })),
       });
-      setProviderMessage('La disponibilidad del profesional se actualizó correctamente.');
+      window.sessionStorage.setItem('pz-internal-toast', 'La disponibilidad del profesional se actualizó correctamente.');
+      navigate('/portal/interno/citas');
     } catch (error) {
       setProviderMessage(error instanceof Error ? error.message : 'No pudimos guardar la disponibilidad del profesional.');
     }
@@ -227,18 +252,28 @@ export function AdminSchedulesPage() {
   };
 
   const createDoctor = async () => {
-    if (!doctorForm.firstName.trim() || !doctorForm.lastName.trim() || !doctorForm.specialty.trim() || !doctorForm.email.trim() || !doctorForm.password.trim()) {
+    const nextDoctorErrors = {
+      firstName: doctorForm.firstName.trim().length < 2,
+      lastName: doctorForm.lastName.trim().length < 2,
+      specialty: doctorForm.specialty.trim().length < 2,
+      email: !doctorForm.email.trim(),
+      password: !doctorForm.password.trim(),
+    };
+    setDoctorErrors(nextDoctorErrors);
+    if (Object.values(nextDoctorErrors).some(Boolean)) {
       setDoctorMessage('Completa nombres, apellidos, especialidad, correo y contraseña para crear el perfil médico.');
       return;
     }
 
     if (!/^\S+@\S+\.\S+$/.test(doctorForm.email.trim())) {
+      setDoctorErrors((current) => ({ ...current, email: true }));
       setDoctorMessage('Ingresa un correo corporativo válido.');
       return;
     }
 
     const passwordValidation = validateStrongPassword(doctorForm.password);
     if (!passwordValidation.isValid) {
+      setDoctorErrors((current) => ({ ...current, password: true }));
       setDoctorMessage('La contraseña debe tener mínimo 8 caracteres, una mayúscula, una minúscula y un número o carácter especial.');
       return;
     }
@@ -264,8 +299,18 @@ export function AdminSchedulesPage() {
         displayName: `${doctorForm.firstName.trim()} ${doctorForm.lastName.trim()}`,
         roles: ['Doctor'],
       });
+      setSelectedProviderId(provider.providerId);
+      setProviderForm({
+        firstName: schedulePayload.firstName,
+        lastName: schedulePayload.lastName,
+        specialty: schedulePayload.specialty,
+        defaultSlotIntervalMinutes: schedulePayload.defaultSlotIntervalMinutes,
+        weeklyAvailabilities: schedulePayload.weeklyAvailabilities.map((item) => ({ ...item })),
+      });
       setDoctorForm(emptyDoctorForm());
-      setDoctorMessage('El perfil médico se creó correctamente y quedó listo para iniciar sesión.');
+      setConfigurationStep('availability');
+      setProviderMessage('Perfil creado. Ahora ajusta las franjas de atención y guarda la disponibilidad.');
+      setDoctorMessage('El perfil médico se creó correctamente y quedó listo para configurar su agenda.');
     } catch (error) {
       setDoctorMessage(error instanceof Error ? error.message : 'No fue posible crear el perfil médico.');
     }
@@ -281,36 +326,43 @@ export function AdminSchedulesPage() {
       <PortalTabs items={tabs} />
 
       {!isDoctor && (
-        <section className="section-card stack-md">
-          <h2>Parámetros generales</h2>
-          <div className="form-grid internal-filter-grid">
-            <label>
-              Semanas habilitadas para reservas
-              <input type="number" min={1} max={24} value={settings.weeksAheadBooking} onChange={(event) => setSettings((current) => ({ ...current, weeksAheadBooking: Number(event.target.value) }))} />
-            </label>
-            <div className="inline-actions end align-end">
-              <button type="button" className="button" onClick={() => void saveSettings()}>Guardar parámetros</button>
-            </div>
+        <section className="section-card stack-md config-dashboard">
+          <div>
+            <span className="eyebrow">Configuración guiada</span>
+            <h2>¿Qué quieres hacer?</h2>
+            <p className="muted-text">Separé la configuración para que no se mezcle crear médicos con editar horarios.</p>
           </div>
-          {settingsMessage && <div className={`feedback-card ${settingsMessage.includes('correctamente') ? 'success' : 'error'}`}>{settingsMessage}</div>}
+          <div className="config-actions">
+            <button type="button" className={`config-action-card ${configurationStep === 'availability' ? 'active' : ''}`} onClick={() => setConfigurationStep('availability')}>
+              <strong>Editar agenda</strong>
+              <span>Selecciona un profesional y ajusta sus franjas.</span>
+            </button>
+            <button type="button" className={`config-action-card ${configurationStep === 'create' ? 'active' : ''}`} onClick={() => setConfigurationStep('create')}>
+              <strong>Crear médico</strong>
+              <span>Primero datos personales; luego pasas a franjas.</span>
+            </button>
+          </div>
         </section>
       )}
 
-      {!isDoctor && (
+
+      {!isDoctor && configurationStep === 'create' && (
         <section className="section-card stack-md">
-          <h2>Crear nuevo perfil médico</h2>
+          <span className="eyebrow">Paso 1 de 2</span>
+          <h2>Datos del médico</h2>
+          <p className="muted-text">Al crear el perfil, el sistema te llevará automáticamente a configurar sus franjas de atención.</p>
           <div className="form-grid">
             <label>
               Nombres
-              <input value={doctorForm.firstName} onChange={(event) => setDoctorForm((current) => ({ ...current, firstName: sanitizeNameInput(event.target.value) }))} />
+              <input className={doctorErrors.firstName ? 'input-error' : ''} value={doctorForm.firstName} onChange={(event) => { setDoctorForm((current) => ({ ...current, firstName: sanitizeNameInput(event.target.value) })); setDoctorErrors((current) => ({ ...current, firstName: false })); }} />
             </label>
             <label>
               Apellidos
-              <input value={doctorForm.lastName} onChange={(event) => setDoctorForm((current) => ({ ...current, lastName: sanitizeNameInput(event.target.value) }))} />
+              <input className={doctorErrors.lastName ? 'input-error' : ''} value={doctorForm.lastName} onChange={(event) => { setDoctorForm((current) => ({ ...current, lastName: sanitizeNameInput(event.target.value) })); setDoctorErrors((current) => ({ ...current, lastName: false })); }} />
             </label>
             <label>
               Especialidad
-              <select value={doctorForm.specialty} onChange={(event) => setDoctorForm((current) => ({ ...current, specialty: event.target.value }))}>
+              <select className={doctorErrors.specialty ? 'input-error' : ''} value={doctorForm.specialty} onChange={(event) => { setDoctorForm((current) => ({ ...current, specialty: event.target.value })); setDoctorErrors((current) => ({ ...current, specialty: false })); }}>
                 {specialtyOptions.map((specialty) => (
                   <option key={specialty} value={specialty}>{specialty}</option>
                 ))}
@@ -318,11 +370,16 @@ export function AdminSchedulesPage() {
             </label>
             <label>
               Correo corporativo
-              <input type="email" value={doctorForm.email} onChange={(event) => setDoctorForm((current) => ({ ...current, email: event.target.value }))} />
+              <input className={doctorErrors.email ? 'input-error' : ''} type="email" value={doctorForm.email} onChange={(event) => { setDoctorForm((current) => ({ ...current, email: event.target.value })); setDoctorErrors((current) => ({ ...current, email: false })); }} />
             </label>
             <label className="span-two">
               Contraseña inicial
-              <input type="password" value={doctorForm.password} onChange={(event) => setDoctorForm((current) => ({ ...current, password: event.target.value }))} />
+              <div className="password-input-row">
+                <input className={doctorErrors.password ? 'input-error' : ''} type={showDoctorPassword ? 'text' : 'password'} value={doctorForm.password} onChange={(event) => { setDoctorForm((current) => ({ ...current, password: event.target.value })); setDoctorErrors((current) => ({ ...current, password: false })); }} />
+                <button type="button" className="button button-secondary password-toggle-button" onClick={() => setShowDoctorPassword((current) => !current)}>
+                  {showDoctorPassword ? 'Ocultar' : 'Ver'}
+                </button>
+              </div>
               <small className="helper-text">Debe tener mínimo 8 caracteres, una mayúscula, una minúscula y un número o carácter especial.</small>
             </label>
           </div>
@@ -333,8 +390,11 @@ export function AdminSchedulesPage() {
         </section>
       )}
 
+      {(isDoctor || configurationStep === 'availability') && (
       <section className="section-card stack-md">
+        {!isDoctor && <span className="eyebrow">Paso 2 de 2</span>}
         <h2>{isDoctor ? 'Mi disponibilidad' : 'Disponibilidad por profesional'}</h2>
+        {!isDoctor && <p className="muted-text">Aquí editas el profesional, las semanas habilitadas y las franjas semanales en un solo lugar.</p>}
         <div className="form-grid internal-filter-grid">
           <label>
             Profesional
@@ -345,6 +405,17 @@ export function AdminSchedulesPage() {
               ))}
             </select>
           </label>
+          {!isDoctor && (
+            <label>
+              Semanas habilitadas
+              <input type="number" min={1} max={24} className={settingsErrors.weeksAheadBooking ? 'input-error' : ''} value={settings.weeksAheadBooking} onChange={(event) => { setSettings((current) => ({ ...current, weeksAheadBooking: Number(event.target.value) })); setSettingsErrors({}); }} />
+            </label>
+          )}
+          {!isDoctor && (
+            <div className="inline-actions align-end">
+              <button type="button" className="button button-secondary" onClick={() => void saveSettings()}>Guardar semanas</button>
+            </div>
+          )}
         </div>
 
         {selectedProvider && (
@@ -352,15 +423,15 @@ export function AdminSchedulesPage() {
             <div className="form-grid">
               <label>
                 Nombres
-                <input value={providerForm.firstName} onChange={(event) => setProviderForm((current) => ({ ...current, firstName: sanitizeNameInput(event.target.value) }))} />
+                <input className={providerErrors.firstName ? 'input-error' : ''} value={providerForm.firstName} onChange={(event) => { setProviderForm((current) => ({ ...current, firstName: sanitizeNameInput(event.target.value) })); setProviderErrors((current) => ({ ...current, firstName: false })); }} />
               </label>
               <label>
                 Apellidos
-                <input value={providerForm.lastName} onChange={(event) => setProviderForm((current) => ({ ...current, lastName: sanitizeNameInput(event.target.value) }))} />
+                <input className={providerErrors.lastName ? 'input-error' : ''} value={providerForm.lastName} onChange={(event) => { setProviderForm((current) => ({ ...current, lastName: sanitizeNameInput(event.target.value) })); setProviderErrors((current) => ({ ...current, lastName: false })); }} />
               </label>
               <label className="span-two">
                 Especialidad
-                <select value={providerForm.specialty} onChange={(event) => setProviderForm((current) => ({ ...current, specialty: event.target.value }))}>
+                <select className={providerErrors.specialty ? 'input-error' : ''} value={providerForm.specialty} onChange={(event) => { setProviderForm((current) => ({ ...current, specialty: event.target.value })); setProviderErrors((current) => ({ ...current, specialty: false })); }}>
                   {specialtyOptions.map((specialty) => (
                     <option key={specialty} value={specialty}>{specialty}</option>
                   ))}
@@ -370,7 +441,7 @@ export function AdminSchedulesPage() {
 
             <div className="stack-md">
               {providerForm.weeklyAvailabilities.map((availability, index) => (
-                <div key={`${index}-${availability.startTime}-${availability.endTime}`} className="availability-row">
+                <div key={`${index}-${availability.startTime}-${availability.endTime}`} className={`availability-row ${providerErrors.weeklyAvailabilities ? 'input-error' : ''}`}>
                   <label>
                     Día
                     <select value={availability.dayOfWeek} onChange={(event) => updateAvailability(index, 'dayOfWeek', Number(event.target.value))}>
@@ -398,7 +469,7 @@ export function AdminSchedulesPage() {
               ))}
             </div>
 
-            {providerMessage && <div className={`feedback-card ${providerMessage.includes('correctamente') ? 'success' : 'error'}`}>{providerMessage}</div>}
+            {providerMessage && <div className={`feedback-card ${providerMessage.includes('correctamente') || providerMessage.includes('Perfil creado') ? 'success' : 'error'}`}>{providerMessage}</div>}
 
             <div className="inline-actions between wrap">
               <button type="button" className="button button-secondary" onClick={() => setProviderForm((current) => ({ ...current, weeklyAvailabilities: [...current.weeklyAvailabilities, emptyAvailability()] }))}>Agregar franja</button>
@@ -410,6 +481,7 @@ export function AdminSchedulesPage() {
           </>
         )}
       </section>
+      )}
     </div>
   );
 }
