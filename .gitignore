@@ -20,3 +20,6 @@ appsettings.Staging.json
 # logs
 backend/src/Piedrazul.Api/logs/
 *.log
+
+# Claude Code
+.claude/

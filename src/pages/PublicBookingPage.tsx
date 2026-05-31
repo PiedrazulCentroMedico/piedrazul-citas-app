@@ -17,9 +17,14 @@ function toLocalDateInputValue(date: Date) {
   return `${year}-${month}-${day}`;
 }
 
-function createCaptchaChallenge(): CaptchaChallenge {
-  const left = Math.floor(Math.random() * 8) + 2;
-  const right = Math.floor(Math.random() * 8) + 1;
+
+function createCaptchaChallenge(previous?: CaptchaChallenge): CaptchaChallenge {
+  let left = Math.floor(Math.random() * 8) + 2;
+  let right = Math.floor(Math.random() * 8) + 1;
+  while (previous && left === previous.left && right === previous.right) {
+    left = Math.floor(Math.random() * 8) + 2;
+    right = Math.floor(Math.random() * 8) + 1;
+  }
   return { left, right, answer: '' };
 }
 
@@ -52,6 +57,7 @@ export function PublicBookingPage() {
   const [patientLookup, setPatientLookup] = useState<PatientPublicLookup | null>(null);
   const [guestLimitModal, setGuestLimitModal] = useState<PatientPublicLookup | null>(null);
   const [captcha, setCaptcha] = useState<CaptchaChallenge>(createCaptchaChallenge);
+  const [captchaAnswer, setCaptchaAnswer] = useState('');
 
   useEffect(() => {
     apiRequest<ProviderSummary[]>('/api/public/providers', null)
@@ -206,7 +212,7 @@ export function PublicBookingPage() {
     if (!form.appointmentDate) errors.push('Debes seleccionar una fecha.');
     if (!form.startTime) errors.push('Debes seleccionar una franja horaria.');
 
-    if (!isPatientSession && Number(captcha.answer) !== captcha.left + captcha.right) {
+    if (!isPatientSession && Number(captchaAnswer) !== captcha.left + captcha.right) {
       errors.push('Resuelve correctamente la verificación anti-bots para confirmar la reserva.');
     }
 
@@ -237,6 +243,7 @@ export function PublicBookingPage() {
       });
       setSuccess(result);
       setCaptcha(createCaptchaChallenge());
+      setCaptchaAnswer('');
       setForm((current) => ({ ...current, startTime: '' }));
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'No fue posible reservar la cita.');
@@ -404,12 +411,18 @@ export function PublicBookingPage() {
                   <strong>Verificación anti-bots</strong>
                   <p className="muted-text">Antes de confirmar tu cita como invitado, resuelve esta operación.</p>
                 </div>
-                <button type="button" className="button button-secondary" onClick={() => setCaptcha(createCaptchaChallenge())}>Cambiar reto</button>
+                <button type="button" className="button button-secondary" onClick={() => {
+  const nuevo = createCaptchaChallenge(captcha);
+  console.log('Captcha anterior:', captcha.left, '+', captcha.right);
+  console.log('Captcha nuevo:', nuevo.left, '+', nuevo.right);
+  setCaptcha(nuevo);
+  setCaptchaAnswer('');
+}}>Cambiar reto</button>
               </div>
               <div className="form-grid internal-filter-grid">
                 <label>
                   ¿Cuánto es {captcha.left} + {captcha.right}?
-                  <input inputMode="numeric" value={captcha.answer} onChange={(event) => setCaptcha((current) => ({ ...current, answer: event.target.value.replace(/\D/g, '') }))} />
+                  <input inputMode="numeric" value={captchaAnswer} onChange={(event) => setCaptchaAnswer(event.target.value.replace(/\D/g, ''))} />
                 </label>
               </div>
             </div>

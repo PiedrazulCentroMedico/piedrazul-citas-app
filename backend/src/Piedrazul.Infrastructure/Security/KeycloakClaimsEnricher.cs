@@ -1,7 +1,7 @@
-using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.JsonWebTokens;
 
 namespace Piedrazul.Infrastructure.Security;
 
@@ -9,7 +9,7 @@ public static class KeycloakClaimsEnricher
 {
     public static Task EnrichAsync(TokenValidatedContext context)
     {
-        if (context.Principal?.Identity is not ClaimsIdentity identity || context.SecurityToken is not JwtSecurityToken jwtToken)
+        if (context.Principal?.Identity is not ClaimsIdentity identity || context.SecurityToken is not JsonWebToken jwtToken)
         {
             return Task.CompletedTask;
         }
@@ -22,40 +22,31 @@ public static class KeycloakClaimsEnricher
             }
         }
 
-        if (jwtToken.Payload.TryGetValue("preferred_username", out var preferredUsername) && preferredUsername is string username)
+        if (jwtToken.TryGetClaim("preferred_username", out var usernameClaim))
         {
-            identity.AddClaim(new Claim(ClaimTypes.Name, username));
+            identity.AddClaim(new Claim(ClaimTypes.Name, usernameClaim.Value));
         }
 
-        if (jwtToken.Payload.TryGetValue("email", out var email) && email is string emailValue)
+        if (jwtToken.TryGetClaim("email", out var emailClaim))
         {
-            identity.AddClaim(new Claim(ClaimTypes.Email, emailValue));
+            identity.AddClaim(new Claim(ClaimTypes.Email, emailClaim.Value));
         }
 
         return Task.CompletedTask;
     }
 
-    private static IEnumerable<string> ExtractRealmRoles(JwtSecurityToken jwtToken)
+    private static IEnumerable<string> ExtractRealmRoles(JsonWebToken jwtToken)
     {
-        if (!jwtToken.Payload.TryGetValue("realm_access", out var realmAccess))
+        if (!jwtToken.TryGetPayloadValue<JsonElement>("realm_access", out var realmAccess))
         {
-            return Array.Empty<string>();
+            return [];
         }
 
-        if (realmAccess is JsonElement jsonElement && jsonElement.ValueKind == JsonValueKind.Object && jsonElement.TryGetProperty("roles", out var rolesElement))
+        if (realmAccess.ValueKind == JsonValueKind.Object && realmAccess.TryGetProperty("roles", out var rolesElement))
         {
             return rolesElement.EnumerateArray().Select(x => x.GetString()).OfType<string>();
         }
 
-        if (realmAccess is string rawJson)
-        {
-            using var document = JsonDocument.Parse(rawJson);
-            if (document.RootElement.TryGetProperty("roles", out var rolesElementString))
-            {
-                return rolesElementString.EnumerateArray().Select(x => x.GetString()).OfType<string>().ToArray();
-            }
-        }
-
-        return Array.Empty<string>();
+        return [];
     }
 }
