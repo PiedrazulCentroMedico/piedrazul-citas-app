@@ -1,15 +1,17 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { saveRegisterDraft } from '../utils/sessionStorage';
 import { sanitizeNameInput, validateStrongPassword } from '../utils/validators';
 
 export function PatientRegisterPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { authMode, register, registerPatientAccount } = useAuth();
+  const documentFromState = ((location.state as { documentNumber?: string } | undefined)?.documentNumber ?? '').replace(/\D/g, '');
 
   const [form, setForm] = useState({
-    documentNumber: '',
+    documentNumber: documentFromState,
     firstName: '',
     lastName: '',
     password: '',

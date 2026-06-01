@@ -4,6 +4,7 @@ const STORAGE_KEYS = {
   contrast: 'pz-accessibility-contrast',
   fontLevel: 'pz-accessibility-font-level',
   boldText: 'pz-accessibility-bold-text',
+  colorBlind: 'pz-accessibility-color-blind',
 };
 
 const MIN_FONT_LEVEL = -3;
@@ -13,6 +14,7 @@ export function AccessibilityTools() {
   const [highContrast, setHighContrast] = useState(() => localStorage.getItem(STORAGE_KEYS.contrast) === 'true');
   const [fontLevel, setFontLevel] = useState(() => Number(localStorage.getItem(STORAGE_KEYS.fontLevel) ?? 0));
   const [boldText, setBoldText] = useState(() => localStorage.getItem(STORAGE_KEYS.boldText) === 'true');
+  const [colorBlindMode, setColorBlindMode] = useState(() => localStorage.getItem(STORAGE_KEYS.colorBlind) === 'true');
 
   useEffect(() => {
     document.body.classList.toggle('accessibility-contrast', highContrast);
@@ -31,6 +33,11 @@ export function AccessibilityTools() {
     localStorage.setItem(STORAGE_KEYS.boldText, String(boldText));
   }, [boldText]);
 
+  useEffect(() => {
+    document.body.classList.toggle('accessibility-color-blind', colorBlindMode);
+    localStorage.setItem(STORAGE_KEYS.colorBlind, String(colorBlindMode));
+  }, [colorBlindMode]);
+
   const reduceFont = () => setFontLevel((current) => Math.max(MIN_FONT_LEVEL, current - 1));
   const increaseFont = () => setFontLevel((current) => Math.min(MAX_FONT_LEVEL, current + 1));
 
@@ -41,7 +48,11 @@ export function AccessibilityTools() {
         className="accessibility-toggle"
         aria-controls="accessibility-panel"
       >
-        <span className="accessibility-main-label">Ayuda visual</span>
+        <span className="accessibility-main-label" aria-hidden="true">
+          <span className="accessibility-word">{'AYUDA'.split('').map((letter, index) => <span key={`ayuda-${index}`}>{letter}</span>)}</span>
+          <span className="accessibility-word">{'VISUAL'.split('').map((letter, index) => <span key={`visual-${index}`}>{letter}</span>)}</span>
+        </span>
+        <span className="sr-only">Ayuda visual</span>
       </button>
 
       <div id="accessibility-panel" className="accessibility-panel">
@@ -60,6 +71,10 @@ export function AccessibilityTools() {
         <button type="button" onClick={() => setBoldText((current) => !current)} title="Activar o desactivar negrita">
           B
           <span>Negrita</span>
+        </button>
+        <button type="button" onClick={() => setColorBlindMode((current) => !current)} title="Activar o desactivar modo daltónico: invierte y diferencia colores">
+          C
+          <span>Modo daltónico</span>
         </button>
       </div>
     </aside>

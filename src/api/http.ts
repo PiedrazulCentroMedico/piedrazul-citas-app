@@ -56,7 +56,15 @@ async function parseError(response: Response) {
     // ignore json parse errors
   }
 
-  return `Ocurrió un error al procesar la solicitud (${response.status}).`;
+  if (response.status === 409) {
+    return 'La franja seleccionada ya no está disponible. Elige otra hora e intenta nuevamente.';
+  }
+
+  if (response.status >= 500) {
+    return 'No pudimos procesar la solicitud en este momento. Intenta nuevamente en unos minutos.';
+  }
+
+  return 'No pudimos completar la solicitud. Revisa la información e intenta nuevamente.';
 }
 
 export async function apiRequest<T>(path: string, session: SessionUser | null, options: RequestOptions = {}): Promise<T> {
