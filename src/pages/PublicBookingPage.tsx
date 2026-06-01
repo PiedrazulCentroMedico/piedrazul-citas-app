@@ -4,6 +4,7 @@ import { apiRequest } from '../api/http';
 import { useAuth } from '../auth/AuthContext';
 import type { AppointmentResponse, AvailabilitySlot, CaptchaChallenge, Gender, GenderOption, PatientProfile, PatientPublicLookup, ProviderSummary, PublicAppointmentPayload } from '../types';
 import { formatDateLabel, sanitizeNameInput, validatePatientForm } from '../utils/validators';
+import { translateStatusLabel } from '../utils/status';
 
 function toMinutes(value: string) {
   const [hours, minutes] = value.split(':').map(Number);
@@ -21,6 +22,13 @@ function addDays(date: Date, days: number) {
   const copy = new Date(date);
   copy.setDate(copy.getDate() + days);
   return copy;
+}
+
+function daysBetweenToday(dateValue: string) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const target = new Date(`${dateValue}T00:00:00`);
+  return Math.max(0, Math.floor((target.getTime() - today.getTime()) / 86400000));
 }
 
 function formatShortDay(date: Date) {
@@ -179,17 +187,20 @@ export function PublicBookingPage() {
           setMessage('No encontramos la cita que quieres reprogramar.');
           return;
         }
-        if (target.status !== 'Programada' && target.status !== 'Scheduled') {
+        if (translateStatusLabel(target.status) !== 'Programada') {
           setMessage('Esta cita ya no está programada y no se puede reprogramar.');
           return;
         }
         setReprogramTarget(target);
+        setSelectedSpecialtyKey(normalizeSpecialty(target.specialty));
+        setDateOffset(Math.floor(daysBetweenToday(target.appointmentDate) / 7) * 7);
         setForm((current) => ({
           ...current,
           providerId: target.providerId,
           appointmentDate: target.appointmentDate,
           startTime: '',
         }));
+        window.setTimeout(() => scrollToElement(scheduleStepRef, 22), 250);
       })
       .catch((error: Error) => setMessage(error.message));
   }, [isPatientSession, searchParams, session]);
@@ -244,6 +255,15 @@ export function PublicBookingPage() {
     return slots.filter((slot) => toMinutes(slot.startTime) >= minimumMinutes);
   }, [form.appointmentDate, slots]);
 
+  const reservationSummary = useMemo(() => ({
+    patient: `${form.firstName} ${form.lastName}`.trim() || 'Paciente no confirmado',
+    document: form.documentNumber || 'Documento no confirmado',
+    professional: selectedProvider?.fullName ?? 'Profesional no seleccionado',
+    specialty: selectedProvider?.specialty ?? 'Especialidad no seleccionada',
+    date: form.appointmentDate ? formatDateLabel(form.appointmentDate) : 'Fecha no seleccionada',
+    time: form.startTime ? `${form.startTime}${visibleSlots.find((slot) => slot.startTime === form.startTime)?.endTime ? ` - ${visibleSlots.find((slot) => slot.startTime === form.startTime)?.endTime}` : ''}` : 'Hora no seleccionada',
+  }), [form.appointmentDate, form.documentNumber, form.firstName, form.lastName, form.startTime, selectedProvider, visibleSlots]);
+
   const slotAvailabilityMessage = useMemo(() => {
     if (!form.appointmentDate) {
       return 'Selecciona profesional y fecha para ver las franjas disponibles.';
@@ -287,6 +307,43 @@ export function PublicBookingPage() {
       const lookup = await apiRequest<PatientPublicLookup>(`/api/public/patients/lookup?document=${documentNumber}`, null);
       setDocumentVerified(true);
       setPatientLookup(lookup.exists ? lookup : null);
+
+      if (lookup.hasUserAccount) {
+        setDocumentVerified(false);
+        setPatientLookup(null);
+        setDocumentNotice(null);
+        setForm((current) => ({
+          ...current,
+          documentNumber,
+          firstName: '',
+          lastName: '',
+          phone: '',
+          gender: '' as GenderOption,
+          birthDate: '',
+          email: '',
+        }));
+        setRegisteredPatientModal(lookup);
+        return;
+      }
+
+      if (lookup.mustRegister) {
+        setDocumentVerified(false);
+        setPatientLookup(null);
+        setDocumentNotice(null);
+        setForm((current) => ({
+          ...current,
+          documentNumber,
+          firstName: '',
+          lastName: '',
+          phone: '',
+          gender: '' as GenderOption,
+          birthDate: '',
+          email: '',
+        }));
+        setGuestLimitModal(lookup);
+        return;
+      }
+
       setDocumentNotice(lookup.exists
         ? `Encontramos información previa para ${lookup.firstName ?? ''} ${lookup.lastName ?? ''}. Completa los datos faltantes para continuar.`
         : 'No encontramos esta cédula. Continúa llenando tus datos para reservar.');
@@ -294,15 +351,6 @@ export function PublicBookingPage() {
         setDocumentNotice(null);
         scrollToElement(patientDataRef);
       }, 3000);
-
-      if (lookup.hasUserAccount) {
-        setRegisteredPatientModal(lookup);
-        return;
-      }
-
-      if (lookup.mustRegister) {
-        setGuestLimitModal(lookup);
-      } 
 
       if (lookup.exists) {
         setForm((current) => ({
@@ -380,6 +428,10 @@ export function PublicBookingPage() {
       setMessage('Selecciona una hora disponible para continuar.');
       return;
     }
+    if (reprogramTarget && form.appointmentDate === reprogramTarget.appointmentDate && form.startTime === reprogramTarget.startTime) {
+      setMessage('Elige una fecha u hora diferente a la cita actual para poder reprogramar.');
+      return;
+    }
     setMessage(null);
     scrollToElement(antiBotStepRef, 22);
   };
@@ -397,6 +449,9 @@ export function PublicBookingPage() {
     if (!form.providerId) errors.push('Debes seleccionar un médico o terapista.');
     if (!form.appointmentDate) errors.push('Debes seleccionar una fecha.');
     if (!form.startTime) errors.push('Debes seleccionar una franja horaria.');
+    if (reprogramTarget && form.appointmentDate === reprogramTarget.appointmentDate && form.startTime === reprogramTarget.startTime) {
+      errors.push('Elige una fecha u hora diferente a la cita actual para poder reprogramar.');
+    }
 
     if (!isPatientSession && Number(captcha.answer) !== captcha.left + captcha.right) {
       errors.push('Resuelve correctamente la verificación anti-bots para confirmar la reserva.');
@@ -468,6 +523,13 @@ export function PublicBookingPage() {
             <span className="eyebrow">Reserva de citas</span>
             <h1>{reprogramTarget ? 'Reprograma tu cita' : 'Agenda tu cita en línea'}</h1>
             <p className="muted-text">{reprogramTarget ? 'Selecciona una nueva fecha y una nueva franja disponible. No se creará una cita adicional.' : 'Primero verifica la cédula, luego completa los datos y confirma tu reserva.'}</p>
+            {reprogramTarget && (
+              <div className="reprogram-current-card">
+                <strong>Cita actual</strong>
+                <span>{reprogramTarget.providerName} · {formatDateLabel(reprogramTarget.appointmentDate)} · {reprogramTarget.startTime} - {reprogramTarget.endTime}</span>
+                <small>El profesional queda bloqueado igual que en el portal interno. Solo debes escoger nueva fecha y hora.</small>
+              </div>
+            )}
           </div>
         </div>
       </section>
@@ -479,6 +541,7 @@ export function PublicBookingPage() {
             <div className="form-grid id-check-grid">
               <label>
                 Número de cédula
+                <small className="field-helper">Escribe solo números, sin puntos ni espacios.</small>
                 <input inputMode="numeric" maxLength={20} value={form.documentNumber} onChange={(event) => handleChange('documentNumber', event.target.value.replace(/\D/g, ''))} />
               </label>
               <div className="inline-actions align-end">
@@ -527,21 +590,31 @@ export function PublicBookingPage() {
               <div className="feedback-card warning">Si algún dato está mal, modifícalo desde <Link to="/portal/paciente/perfil"><strong>editar perfil</strong></Link> antes de confirmar la reserva.</div>
             </>
           ) : (
+            <>
+            {!documentVerified && (
+              <div className="feedback-card warning">
+                Verifica primero la cédula. Si ya existe una cuenta o una reserva previa como invitado, el sistema bloqueará estos campos y te guiará a iniciar sesión o crear cuenta.
+              </div>
+            )}
             <div className="form-grid">
               <label>
                 Documento
+                <small className="field-helper">Este dato se verifica primero y queda protegido.</small>
                 <input inputMode="numeric" maxLength={20} value={form.documentNumber} disabled onChange={(event) => handleChange('documentNumber', event.target.value.replace(/\D/g, ''))} />
               </label>
               <label>
                 Nombres
+                <small className="field-helper">Escribe tus nombres como aparecen en el documento.</small>
                 <input maxLength={80} value={form.firstName} disabled={!documentVerified} onChange={(event) => handleChange('firstName', sanitizeNameInput(event.target.value))} />
               </label>
               <label>
                 Apellidos
+                <small className="field-helper">Escribe tus apellidos completos.</small>
                 <input maxLength={80} value={form.lastName} disabled={!documentVerified} onChange={(event) => handleChange('lastName', sanitizeNameInput(event.target.value))} />
               </label>
               <label>
                 Celular
+                <small className="field-helper">Usa un número activo para que Piedrazul pueda contactarte.</small>
                 <input inputMode="numeric" maxLength={15} value={form.phone} disabled={!documentVerified} onChange={(event) => handleChange('phone', event.target.value.replace(/\D/g, ''))} />
                 {patientLookup?.maskedPhone && <small className="muted-text">Registrado: {patientLookup.maskedPhone}</small>}
               </label>
@@ -561,10 +634,12 @@ export function PublicBookingPage() {
               </label>
               <label className="span-two">
                 Correo electrónico (opcional)
+                <small className="field-helper">Sirve para recibir información, pero puedes dejarlo vacío.</small>
                 <input type="email" maxLength={150} value={form.email} disabled={!documentVerified} onChange={(event) => handleChange('email', event.target.value)} />
                 {patientLookup?.maskedEmail && <small className="muted-text">Registrado: {patientLookup.maskedEmail}</small>}
               </label>
             </div>
+            </>
           )}
           <div className="inline-actions end">
             <button type="button" className="button" onClick={handleDataConfirmed}>Confirmar datos y continuar</button>
@@ -574,6 +649,7 @@ export function PublicBookingPage() {
         <section ref={providerStepRef} className="section-card stack-md">
           <h2>{isPatientSession ? 'Paso 2. Selecciona el profesional' : 'Paso 3. Selecciona el profesional'}</h2>
           <p className="muted-text">Primero elige la especialidad y luego el profesional que atenderá la cita.</p>
+          {reprogramTarget && <div className="selection-help">Estás reprogramando una cita existente. Para evitar errores, se conserva el mismo profesional.</div>}
 
           <div className="selection-step-label">1. Selecciona especialidad</div>
           <div className="specialty-choice-grid" role="group" aria-label="Seleccionar especialidad">
@@ -616,6 +692,11 @@ export function PublicBookingPage() {
         <section ref={scheduleStepRef} className="section-card stack-md">
           <h2>{isPatientSession ? 'Paso 3. Selecciona fecha y hora' : 'Paso 4. Selecciona fecha y hora'}</h2>
           <p className="muted-text">Selecciona primero el día de atención; luego marca una hora disponible para confirmar la cita.</p>
+          <div className="color-legend" aria-label="Guía de colores y estados">
+            <span><i className="legend-box legend-available" /> Disponible</span>
+            <span><i className="legend-box legend-selected" /> Seleccionado</span>
+            <span><i className="legend-box legend-unavailable" /> No disponible</span>
+          </div>
 
           <div className="date-strip" aria-label="Seleccionar fecha de la cita">
             <button
@@ -695,6 +776,24 @@ export function PublicBookingPage() {
             </>
           )}
 
+          {form.startTime && (
+            <div className="reservation-summary-card" aria-live="polite">
+              <div>
+                <span className="eyebrow">Revisa antes de confirmar</span>
+                <h3>{reprogramTarget ? 'Nueva cita seleccionada' : 'Resumen de la cita'}</h3>
+                <p className="muted-text">Confirma solo si la información es correcta.</p>
+              </div>
+              <div className="summary-grid">
+                <div><span>Paciente:</span><strong>{reservationSummary.patient}</strong></div>
+                <div><span>Documento:</span><strong>{reservationSummary.document}</strong></div>
+                <div><span>Profesional:</span><strong>{reservationSummary.professional}</strong></div>
+                <div><span>Especialidad:</span><strong>{reservationSummary.specialty}</strong></div>
+                <div><span>Fecha:</span><strong>{reservationSummary.date}</strong></div>
+                <div><span>Hora:</span><strong>{reservationSummary.time}</strong></div>
+              </div>
+            </div>
+          )}
+
           {message && <div className="feedback-card error">{message}</div>}
           <div className="inline-actions end">
             <button type="submit" className="button" disabled={submitting}>
@@ -703,6 +802,35 @@ export function PublicBookingPage() {
           </div>
         </section>
       </form>
+
+      <section className="section-card patient-help-section">
+        <div className="section-header between wrap">
+          <div>
+            <span className="eyebrow">Sección de ayuda para pacientes</span>
+            <h2>Preguntas frecuentes</h2>
+            <p className="muted-text">Resuelve dudas rápidas sin salir del proceso.</p>
+          </div>
+          <a className="button button-secondary" href="https://wa.me/573001234567" target="_blank" rel="noreferrer">Ayuda por WhatsApp</a>
+        </div>
+        <div className="faq-grid">
+          <details>
+            <summary>¿Qué hago si no veo horarios?</summary>
+            <p>Prueba con otra fecha o profesional. Si sigue sin aparecer disponibilidad, escribe por WhatsApp.</p>
+          </details>
+          <details>
+            <summary>¿Puedo cambiar mi cita?</summary>
+            <p>Sí. Desde Mis citas usa Reprogramar. El sistema conserva el historial y no crea una cita adicional.</p>
+          </details>
+          <details>
+            <summary>¿Debo registrarme?</summary>
+            <p>Para consultar y gestionar tus citas de forma segura, lo recomendado es tener cuenta de paciente.</p>
+          </details>
+          <details>
+            <summary>¿Cómo identifico las opciones si no distingo bien los colores?</summary>
+            <p>Usa el botón C de la ayuda visual. Además, las opciones tienen texto: Disponible, Seleccionado o No disponible.</p>
+          </details>
+        </div>
+      </section>
 
       {documentNotice && (
         <div className="modal-backdrop" role="dialog" aria-modal="true">
@@ -725,6 +853,15 @@ export function PublicBookingPage() {
             <div><span>Profesional:</span><strong>{success.providerName}</strong></div>
             <div><span>Especialidad:</span><strong>{success.specialty}</strong></div>
             <div><span>Fecha y hora:</span><strong>{formatDateLabel(success.appointmentDate)} · {success.startTime}</strong></div>
+          </div>
+
+          <div className="notice-card appointment-tips">
+            <strong>Recomendaciones para el día de la cita</strong>
+            <ul>
+              <li>Llega 10 minutos antes.</li>
+              <li>Lleva tu documento de identidad.</li>
+              <li>Si no puedes asistir, cancela o reprograma con anticipación.</li>
+            </ul>
           </div>
 
           {!isPatientSession && (
@@ -758,12 +895,17 @@ export function PublicBookingPage() {
         <section className="modal-card stack-md">
           <span className="eyebrow">Cuenta encontrada</span>
           <h2>Esta cédula ya tiene una cuenta registrada</h2>
-          <p className="muted-text">Para proteger tus datos e historial de citas, inicia sesión antes de reservar.</p>
+          <p className="muted-text">Para proteger tus datos e historial de citas, no puedes continuar como invitado. Te llevaremos al inicio de sesión con tu cédula ya escrita.</p>
+          <div className="notice-card login-assist-card"><strong>Cédula detectada</strong><span>{form.documentNumber}</span></div>
           <div className="inline-actions end wrap">
             <button type="button" className="button" onClick={() => navigate('/iniciar-sesion', { state: { documentNumber: form.documentNumber, from: { pathname: '/reservar' } } })}>
               Iniciar sesión
             </button>
-            <button type="button" className="button button-secondary" onClick={() => setRegisteredPatientModal(null)}>
+            <button type="button" className="button button-secondary" onClick={() => {
+              setRegisteredPatientModal(null);
+              setDocumentVerified(false);
+              setPatientLookup(null);
+            }}>
               Volver
             </button>
           </div>
@@ -778,8 +920,9 @@ export function PublicBookingPage() {
           <h2>Ya usaste tu cita como invitado</h2>
 
           <p className="muted-text">
-            Para reservar otra cita debes crear una cuenta. Por seguridad solo mostramos fecha y tipo de cita.
+            Ya existe una reserva previa como invitado. Para proteger tus datos, ahora debes crear una cuenta. Te llevaremos al registro con tu cédula ya escrita.
           </p>
+          <div className="notice-card login-assist-card"><strong>Cédula detectada</strong><span>{form.documentNumber}</span></div>
 
           <div className="summary-grid">
             <div>
@@ -794,11 +937,15 @@ export function PublicBookingPage() {
           </div>
 
           <div className="inline-actions end wrap">
-            <button type="button" className="button" onClick={() => navigate('/crear-cuenta')}>
-              Registrar usuario
+            <button type="button" className="button" onClick={() => navigate('/crear-cuenta', { state: { documentNumber: form.documentNumber } })}>
+              Crear cuenta
             </button>
 
-            <button type="button" className="button button-secondary" onClick={() => setGuestLimitModal(null)}>
+            <button type="button" className="button button-secondary" onClick={() => {
+              setGuestLimitModal(null);
+              setDocumentVerified(false);
+              setPatientLookup(null);
+            }}>
               Salir
             </button>
           </div>

@@ -68,7 +68,7 @@ export function PatientDashboardPage() {
     <div className="stack-lg">
       <section className="section-card">
         <h1>Portal del paciente</h1>
-        <p className="muted-text">Bienvenido, {session?.displayName}. Desde aquí puedes revisar tus citas y mantener tus datos actualizados.</p>
+        <p className="muted-text">Bienvenido, {session?.displayName}. Desde aquí puedes revisar tus citas, cancelar o reprogramar sin crear una cita nueva.</p>
       </section>
 
       <PortalTabs items={tabs} />
@@ -92,6 +92,7 @@ export function PatientDashboardPage() {
           <div className="inline-actions wrap">
             <Link className="button" to="/reservar">Reservar nueva cita</Link>
             <Link className="button button-secondary" to="/portal/paciente/perfil">Actualizar perfil</Link>
+            <a className="button button-secondary" href="https://wa.me/573001234567" target="_blank" rel="noreferrer">Ayuda por WhatsApp</a>
           </div>
         </article>
       </section>
@@ -120,13 +121,13 @@ export function PatientDashboardPage() {
                   const cancellable = canCancelAppointment(appointment);
                   return (
                     <tr key={appointment.id} className={isCancelledAppointment(appointment) ? 'appointment-row-cancelled' : undefined}>
-                      <td>{formatDateLabel(appointment.appointmentDate)}</td>
-                      <td>{appointment.startTime} - {appointment.endTime}</td>
-                      <td>{appointment.providerName}</td>
-                      <td>{appointment.specialty}</td>
-                      <td>{translateStatusLabel(appointment.status)}</td>
-                      <td>{appointment.channel}</td>
-                      <td>
+                      <td data-label="Fecha">{formatDateLabel(appointment.appointmentDate)}</td>
+                      <td data-label="Hora">{appointment.startTime} - {appointment.endTime}</td>
+                      <td data-label="Profesional">{appointment.providerName}</td>
+                      <td data-label="Especialidad">{appointment.specialty}</td>
+                      <td data-label="Estado"><span className={`status-pill status-${translateStatusLabel(appointment.status).toLowerCase()}`}>{translateStatusLabel(appointment.status)}</span></td>
+                      <td data-label="Canal">{appointment.channel}</td>
+                      <td data-label="Acciones">
                         <div className="inline-actions wrap">
                           {cancellable && (
                             <button type="button" className="button button-ghost" onClick={() => setCancelTarget(appointment)}>
@@ -135,7 +136,7 @@ export function PatientDashboardPage() {
                           )}
                           {translateStatusLabel(appointment.status) === 'Programada' && (
                             <Link className="button button-secondary" to={`/reservar?reprogramar=${appointment.id}`}>
-                              Reprogramar
+                              Reprogramar cita
                             </Link>
                           )}
                           {!cancellable && translateStatusLabel(appointment.status) !== 'Programada' && <span className="helper-text">Sin acciones</span>}
@@ -148,6 +149,30 @@ export function PatientDashboardPage() {
             </table>
           </div>
         )}
+      </section>
+
+      <section className="section-card patient-help-section">
+        <div className="section-header between wrap">
+          <div>
+            <span className="eyebrow">Ayuda para pacientes</span>
+            <h2>Preguntas frecuentes</h2>
+            <p className="muted-text">Guía rápida para gestionar tus citas.</p>
+          </div>
+        </div>
+        <div className="faq-grid">
+          <details>
+            <summary>¿Cómo reprogramo sin crear otra cita?</summary>
+            <p>Usa el botón Reprogramar cita en una cita programada. El sistema conserva el profesional y solo te pide nueva fecha y hora.</p>
+          </details>
+          <details>
+            <summary>¿Qué significan los estados?</summary>
+            <p>Programada está activa, Cancelada ya no se atenderá y Reagendada indica que tuvo cambios de fecha u hora.</p>
+          </details>
+          <details>
+            <summary>¿Qué llevo a la cita?</summary>
+            <p>Llega 10 minutos antes y lleva tu documento de identidad.</p>
+          </details>
+        </div>
       </section>
 
       {cancelTarget && (
