@@ -71,7 +71,15 @@ public sealed class AppointmentLifecycleService(
         if (request.NewDate > today.AddDays(settings.WeeksAheadBooking * 7))
             return OperationResult<AppointmentResponse>.Validation($"Solo se pueden reservar citas dentro de las próximas {settings.WeeksAheadBooking} semanas.");
 
-        var slotResult = await _availability.ResolveSlotAsync(appointment.ProviderId, request.NewDate, request.NewStartTime, cancellationToken);
+        var targetProviderId = request.NewProviderId.GetValueOrDefault(appointment.ProviderId);
+        if (targetProviderId == Guid.Empty)
+            return OperationResult<AppointmentResponse>.Validation("Debes seleccionar un médico o terapista válido.");
+
+        var targetProvider = await _appointments.GetActiveProviderAsync(targetProviderId, cancellationToken);
+        if (targetProvider is null)
+            return OperationResult<AppointmentResponse>.Validation("El médico o terapista seleccionado no está disponible.");
+
+        var slotResult = await _availability.ResolveSlotAsync(targetProviderId, request.NewDate, request.NewStartTime, cancellationToken);
         if (!slotResult.Succeeded || slotResult.Data is null)
             return OperationResult<AppointmentResponse>.Validation(slotResult.Errors.ToArray());
 
@@ -83,6 +91,7 @@ public sealed class AppointmentLifecycleService(
         var normalizedChangedBy = PatientInputValidator.Normalize(changedBy);
         if (string.IsNullOrWhiteSpace(normalizedChangedBy)) normalizedChangedBy = "system";
 
+        var previousProviderId = appointment.ProviderId;
         var previousDate = appointment.AppointmentDate;
         var history = new AppointmentHistory
         {
@@ -98,6 +107,8 @@ public sealed class AppointmentLifecycleService(
             ChangedAtUtc      = DateTime.UtcNow
         };
 
+        appointment.ProviderId = targetProviderId;
+        appointment.Provider = targetProvider;
         appointment.AppointmentDate = request.NewDate;
         appointment.StartTime = slotResult.Data.StartTime;
         appointment.EndTime   = slotResult.Data.EndTime;
@@ -120,11 +131,13 @@ public sealed class AppointmentLifecycleService(
             history.PreviousStartTime,
             history.NewDate,
             history.NewStartTime,
+            PreviousProviderId = previousProviderId,
+            NewProviderId = targetProviderId,
             history.ChangedBy
         }, cancellationToken);
 
-        await _cache.RemoveAsync(CacheKeys.AvailabilitySlots(appointment.ProviderId, previousDate), cancellationToken);
-        await _cache.RemoveAsync(CacheKeys.AvailabilitySlots(appointment.ProviderId, appointment.AppointmentDate), cancellationToken);
+        await _cache.RemoveAsync(CacheKeys.AvailabilitySlots(previousProviderId, previousDate), cancellationToken);
+        await _cache.RemoveAsync(CacheKeys.AvailabilitySlots(targetProviderId, appointment.AppointmentDate), cancellationToken);
         await _notifications.NotifyAppointmentStatusChangedAsync(appointment, cancellationToken);
 
         return OperationResult<AppointmentResponse>.Success(AppointmentMapper.ToResponse(appointment));

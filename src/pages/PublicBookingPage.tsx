@@ -482,6 +482,7 @@ export function PublicBookingPage() {
           method: 'PUT',
           body: {
             appointmentId: reprogramTarget.id,
+            newProviderId: form.providerId,
             newDate: form.appointmentDate,
             newStartTime: form.startTime,
             reason: 'Reprogramación solicitada por paciente desde el portal web.',
@@ -522,12 +523,12 @@ export function PublicBookingPage() {
           <div className="stack-sm">
             <span className="eyebrow">Reserva de citas</span>
             <h1>{reprogramTarget ? 'Reprograma tu cita' : 'Agenda tu cita en línea'}</h1>
-            <p className="muted-text">{reprogramTarget ? 'Selecciona una nueva fecha y una nueva franja disponible. No se creará una cita adicional.' : 'Primero verifica la cédula, luego completa los datos y confirma tu reserva.'}</p>
+            <p className="muted-text">{reprogramTarget ? 'Puedes cambiar el profesional, la fecha y la hora de esta cita. No se creará una cita adicional.' : 'Primero verifica la cédula, luego completa los datos y confirma tu reserva.'}</p>
             {reprogramTarget && (
               <div className="reprogram-current-card">
                 <strong>Cita actual</strong>
                 <span>{reprogramTarget.providerName} · {formatDateLabel(reprogramTarget.appointmentDate)} · {reprogramTarget.startTime} - {reprogramTarget.endTime}</span>
-                <small>El profesional queda bloqueado igual que en el portal interno. Solo debes escoger nueva fecha y hora.</small>
+                <small>Puedes conservar este profesional o seleccionar otro antes de elegir la nueva fecha y hora.</small>
               </div>
             )}
           </div>
@@ -649,7 +650,7 @@ export function PublicBookingPage() {
         <section ref={providerStepRef} className="section-card stack-md">
           <h2>{isPatientSession ? 'Paso 2. Selecciona el profesional' : 'Paso 3. Selecciona el profesional'}</h2>
           <p className="muted-text">Primero elige la especialidad y luego el profesional que atenderá la cita.</p>
-          {reprogramTarget && <div className="selection-help">Estás reprogramando una cita existente. Para evitar errores, se conserva el mismo profesional.</div>}
+          {reprogramTarget && <div className="selection-help">Estás reprogramando una cita existente. Puedes conservar el profesional actual o seleccionar otro disponible.</div>}
 
           <div className="selection-step-label">1. Selecciona especialidad</div>
           <div className="specialty-choice-grid" role="group" aria-label="Seleccionar especialidad">
@@ -659,7 +660,6 @@ export function PublicBookingPage() {
                 type="button"
                 className={`choice-card ${selectedSpecialtyKeySafe === specialty.key ? 'selected' : ''}`}
                 onClick={() => handleSpecialtySelected(specialty.key)}
-                disabled={Boolean(reprogramTarget)}
               >
                 <span className="choice-check">{selectedSpecialtyKeySafe === specialty.key ? '✓' : ''}</span>
                 <strong>{specialty.label}</strong>
@@ -675,7 +675,6 @@ export function PublicBookingPage() {
                 type="button"
                 className={`provider-choice-card ${form.providerId === provider.id ? 'selected' : ''}`}
                 onClick={() => handleProviderSelected(provider.id)}
-                disabled={Boolean(reprogramTarget)}
               >
                 <strong>{provider.fullName}</strong>
                 <span>{provider.specialty}</span>

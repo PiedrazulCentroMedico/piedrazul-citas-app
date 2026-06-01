@@ -3221,3 +3221,54 @@ body.accessibility-color-blind .date-option:disabled {
   color: #374151 !important;
   border: 2px dashed #4b5563 !important;
 }
+
+/* Corrección reprogramación y ayuda visual móvil */
+.accessibility-tools.is-open .accessibility-panel {
+  transform: translate(0, -50%) !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+@media (max-width: 760px) {
+  .accessibility-tools {
+    display: flex !important;
+    position: fixed !important;
+    right: 0 !important;
+    top: auto !important;
+    bottom: 10px !important;
+    transform: none !important;
+    transform-origin: right bottom !important;
+    z-index: 999 !important;
+  }
+
+  .accessibility-toggle {
+    min-height: 210px !important;
+    width: 42px !important;
+    min-width: 42px !important;
+  }
+
+  .accessibility-panel {
+    right: 44px !important;
+    top: 50% !important;
+    max-height: min(76vh, 330px) !important;
+    overflow-y: auto !important;
+    transform: translate(8px, -50%) !important;
+  }
+
+  .accessibility-tools:hover .accessibility-panel,
+  .accessibility-tools:focus-within .accessibility-panel,
+  .accessibility-tools.is-open .accessibility-panel {
+    transform: translate(0, -50%) !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
+
+  .accessibility-panel button {
+    width: 42px !important;
+    height: 42px !important;
+  }
+
+  .accessibility-panel button span {
+    display: none !important;
+  }
+}

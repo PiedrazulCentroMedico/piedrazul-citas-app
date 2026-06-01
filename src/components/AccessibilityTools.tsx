@@ -11,6 +11,7 @@ const MIN_FONT_LEVEL = -3;
 const MAX_FONT_LEVEL = 6;
 
 export function AccessibilityTools() {
+  const [isOpen, setIsOpen] = useState(false);
   const [highContrast, setHighContrast] = useState(() => localStorage.getItem(STORAGE_KEYS.contrast) === 'true');
   const [fontLevel, setFontLevel] = useState(() => Number(localStorage.getItem(STORAGE_KEYS.fontLevel) ?? 0));
   const [boldText, setBoldText] = useState(() => localStorage.getItem(STORAGE_KEYS.boldText) === 'true');
@@ -42,11 +43,18 @@ export function AccessibilityTools() {
   const increaseFont = () => setFontLevel((current) => Math.min(MAX_FONT_LEVEL, current + 1));
 
   return (
-    <aside className="accessibility-tools" aria-label="Herramientas de accesibilidad">
+    <aside
+      className={`accessibility-tools ${isOpen ? 'is-open' : ''}`}
+      aria-label="Herramientas de accesibilidad"
+      onMouseEnter={() => setIsOpen(true)}
+      onMouseLeave={() => setIsOpen(false)}
+    >
       <button
         type="button"
         className="accessibility-toggle"
         aria-controls="accessibility-panel"
+        aria-expanded={isOpen}
+        onClick={() => setIsOpen((current) => !current)}
       >
         <span className="accessibility-main-label" aria-hidden="true">
           <span className="accessibility-word">{'AYUDA'.split('').map((letter, index) => <span key={`ayuda-${index}`}>{letter}</span>)}</span>
