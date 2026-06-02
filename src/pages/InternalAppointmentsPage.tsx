@@ -807,7 +807,7 @@ export function InternalAppointmentsPage({ mode = 'list' }: { mode?: 'list' | 'r
                         <td>{appointment.channel}</td>
                         <td>{translatedStatus}</td>
                         <td>
-                          <div className="inline-actions wrap">
+                          <div className="inline-actions wrap appointment-actions">
                             <label htmlFor={`status-${appointment.id}`} className="sr-only">Cambiar estado de la cita</label>
                             <select
                               id={`status-${appointment.id}`}

@@ -102,7 +102,7 @@ export function PatientRegisterPage() {
         <form className="auth-form" onSubmit={handleSubmit}>
           <div className="form-grid">
             <label>
-              Cédula
+              Cédula <span className="required-star">*</span>
               <input
                 className={fieldErrors.documentNumber ? 'input-error' : ''}
                 inputMode="numeric"
@@ -114,7 +114,7 @@ export function PatientRegisterPage() {
             </label>
 
             <label>
-              Nombres
+              Nombres <span className="required-star">*</span>
               <input
                 className={fieldErrors.firstName ? 'input-error' : ''}
                 value={form.firstName}
@@ -125,7 +125,7 @@ export function PatientRegisterPage() {
             </label>
 
             <label>
-              Apellidos
+              Apellidos <span className="required-star">*</span>
               <input
                 className={fieldErrors.lastName ? 'input-error' : ''}
                 value={form.lastName}
@@ -137,7 +137,7 @@ export function PatientRegisterPage() {
           </div>
 
           <label>
-            Contraseña
+            Contraseña <span className="required-star">*</span>
             <input
               className={fieldErrors.password ? 'input-error' : ''}
               type={showPassword ? 'text' : 'password'}
@@ -160,7 +160,7 @@ export function PatientRegisterPage() {
           </label>
 
           <label>
-            Confirmar contraseña
+            Confirmar contraseña <span className="required-star">*</span>
             <input
               className={fieldErrors.confirmPassword ? 'input-error' : ''}
               type={showConfirmPassword ? 'text' : 'password'}

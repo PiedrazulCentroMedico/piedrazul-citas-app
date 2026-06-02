@@ -58,15 +58,15 @@ export function ResetPasswordPage() {
 
         <form className="auth-form" onSubmit={handleSubmit}>
           <label>
-            Número de cédula
+            Número de cédula <span className="required-star">*</span>
             <input inputMode="numeric" value={form.identifier} onChange={(event) => handleChange('identifier', event.target.value.replace(/\D/g, ''))} />
           </label>
           <label>
-            Código temporal
+            Código temporal <span className="required-star">*</span>
             <input value={form.code} onChange={(event) => handleChange('code', event.target.value)} />
           </label>
           <label>
-            Nueva contraseña
+            Nueva contraseña <span className="required-star">*</span>
             <input type={showPassword ? 'text' : 'password'} value={form.password} onChange={(event) => handleChange('password', event.target.value)} />
           </label>
           <label className="checkbox-inline">
@@ -74,7 +74,7 @@ export function ResetPasswordPage() {
             <span>Mostrar nueva contraseña</span>
           </label>
           <label>
-            Confirmar contraseña
+            Confirmar contraseña <span className="required-star">*</span>
             <input type={showConfirmPassword ? 'text' : 'password'} value={form.confirmPassword} onChange={(event) => handleChange('confirmPassword', event.target.value)} />
           </label>
           <label className="checkbox-inline">

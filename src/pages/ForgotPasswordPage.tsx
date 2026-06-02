@@ -43,7 +43,7 @@ export function ForgotPasswordPage() {
 
         <form className="auth-form" onSubmit={handleSubmit}>
           <label>
-            Número de cédula
+            Número de cédula <span className="required-star">*</span>
             <input inputMode="numeric" value={identifier} onChange={(event) => setIdentifier(event.target.value.replace(/\D/g, ''))} />
           </label>
 

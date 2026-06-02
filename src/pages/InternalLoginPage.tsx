@@ -49,11 +49,11 @@ export function InternalLoginPage() {
 
         <form className="auth-form" onSubmit={handleSubmit}>
           <label>
-            Correo corporativo
+            Correo corporativo <span className="required-star">*</span>
             <input type="email" autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} />
           </label>
           <label>
-            Contraseña
+            Contraseña <span className="required-star">*</span>
             <input type={showPassword ? 'text' : 'password'} autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} />
           </label>
           <div className="between wrap password-login-actions">

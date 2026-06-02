@@ -3272,3 +3272,698 @@ body.accessibility-color-blind .date-option:disabled {
     display: none !important;
   }
 }
+
+/* Ajustes finales: obligatoriedad, agenda limitada, historial y responsivo */
+.required-star {
+  color: #dc2626;
+  font-weight: 900;
+  margin-left: 2px;
+}
+
+.field-warning {
+  display: block;
+  margin-top: 0.4rem;
+  color: #b45309;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.date-option.limit-blocked {
+  border-color: #fecaca !important;
+  background: #fff1f2 !important;
+  color: #991b1b !important;
+  cursor: not-allowed;
+}
+
+.date-option.limit-blocked small {
+  display: block;
+  margin-top: 0.25rem;
+  color: #b91c1c;
+  font-weight: 800;
+  font-size: 0.72rem;
+}
+
+.internal-date-strip-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.field-label {
+  font-weight: 800;
+  color: var(--text);
+}
+
+.next-appointment-card {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(37, 99, 235, 0.24);
+  background: linear-gradient(135deg, #ffffff 0%, #eff6ff 55%, #eefbf7 100%);
+  box-shadow: 0 20px 40px rgba(37, 99, 235, 0.12);
+}
+
+.next-appointment-card::after {
+  content: '';
+  position: absolute;
+  width: 150px;
+  height: 150px;
+  right: -50px;
+  top: -55px;
+  background: radial-gradient(circle, rgba(22, 163, 74, 0.18), transparent 65%);
+  pointer-events: none;
+}
+
+.next-appointment-content {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.next-date-badge {
+  min-width: 142px;
+  padding: 1rem;
+  border-radius: 22px;
+  background: #ffffff;
+  border: 1px solid rgba(37, 99, 235, 0.18);
+  box-shadow: 0 14px 28px rgba(15, 23, 42, 0.08);
+}
+
+.next-date-badge strong {
+  display: block;
+  color: var(--primary);
+  font-size: 1.45rem;
+  line-height: 1;
+}
+
+.next-date-badge span {
+  display: block;
+  margin-top: 0.45rem;
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
+.history-list {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.75rem 0;
+}
+
+.history-card {
+  display: grid;
+  gap: 0.3rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid #bfdbfe;
+  border-radius: 18px;
+  background: #eff6ff;
+}
+
+.history-card span,
+.history-card small {
+  color: var(--text-muted);
+}
+
+.appointment-history-row td {
+  background: #f8fbff !important;
+}
+
+.faq-hero {
+  background: linear-gradient(135deg, #ffffff 0%, #eef6ff 100%);
+}
+
+.faq-grid-wide {
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.stack-xs {
+  display: grid;
+  gap: 0.28rem;
+}
+
+@media (max-width: 900px) {
+  .main-nav,
+  .header-actions,
+  .portal-tabs,
+  .date-strip-days,
+  .provider-choice-grid,
+  .specialty-choice-grid,
+  .faq-grid,
+  .grid-two {
+    grid-template-columns: 1fr !important;
+  }
+
+  .main-nav,
+  .portal-tabs {
+    width: 100%;
+    overflow-x: auto;
+    display: flex;
+    justify-content: flex-start;
+    padding-bottom: 0.25rem;
+  }
+
+  .topbar-inner,
+  .header-actions,
+  .inline-actions,
+  .next-appointment-content {
+    align-items: stretch;
+  }
+
+  .next-appointment-content {
+    flex-direction: column;
+  }
+
+  .next-date-badge {
+    width: 100%;
+  }
+
+  .date-strip {
+    align-items: stretch;
+  }
+
+  .date-strip-days {
+    display: grid;
+  }
+}
+
+@media (max-width: 640px) {
+  .section-card,
+  .modal-card {
+    border-radius: 20px;
+    padding: 1rem;
+  }
+
+  .form-grid,
+  .internal-filter-grid,
+  .summary-grid,
+  .patient-confirm-row {
+    grid-template-columns: 1fr !important;
+  }
+
+  .span-two {
+    grid-column: auto !important;
+  }
+
+  .slot-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .button,
+  .header-button,
+  .portal-tab {
+    width: 100%;
+    justify-content: center;
+  }
+
+  table,
+  thead,
+  tbody,
+  tr,
+  th,
+  td {
+    display: block;
+    width: 100%;
+  }
+
+  thead {
+    display: none;
+  }
+
+  tbody tr {
+    margin-bottom: 1rem;
+    padding: 0.9rem;
+    border: 1px solid #dbeafe;
+    border-radius: 18px;
+    background: #ffffff;
+  }
+
+  td {
+    border: 0 !important;
+    padding: 0.45rem 0 !important;
+  }
+
+  td::before {
+    content: attr(data-label);
+    display: block;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+}
+
+/* Ajustes solicitados v4: header en una sola fila, campos más visibles y formularios */
+.topbar-inner {
+  display: grid !important;
+  grid-template-columns: auto minmax(0, 1fr) auto !important;
+  align-items: center !important;
+  gap: 0.8rem !important;
+}
+
+.main-nav {
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  justify-content: center !important;
+  align-items: center !important;
+  gap: 0.55rem !important;
+  min-width: 0 !important;
+  overflow-x: auto !important;
+  padding: 0.25rem 0 !important;
+}
+
+.header-actions {
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 0.55rem !important;
+  min-width: max-content !important;
+}
+
+.main-nav a,
+.header-actions .button {
+  min-height: 52px !important;
+  padding: 0.7rem 1rem !important;
+  border-radius: 14px !important;
+  white-space: nowrap !important;
+  font-size: 0.95rem !important;
+}
+
+.header-button {
+  min-width: 150px !important;
+}
+
+.brand {
+  min-width: max-content !important;
+}
+
+/* El asterisco queda en la misma línea del nombre del campo y el input baja a su propia fila */
+label:not(.checkbox-inline):not(.checkbox-field):not(.sr-only) {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  column-gap: 0.28rem !important;
+  row-gap: 0.42rem !important;
+  font-weight: 800 !important;
+}
+
+label:not(.checkbox-inline):not(.checkbox-field):not(.sr-only) > input,
+label:not(.checkbox-inline):not(.checkbox-field):not(.sr-only) > select,
+label:not(.checkbox-inline):not(.checkbox-field):not(.sr-only) > textarea,
+label:not(.checkbox-inline):not(.checkbox-field):not(.sr-only) > .password-input-row,
+label:not(.checkbox-inline):not(.checkbox-field):not(.sr-only) > .field-helper,
+label:not(.checkbox-inline):not(.checkbox-field):not(.sr-only) > .helper-text,
+label:not(.checkbox-inline):not(.checkbox-field):not(.sr-only) > .field-warning {
+  flex: 0 0 100% !important;
+}
+
+.required-star {
+  display: inline !important;
+  color: #dc2626 !important;
+  font-weight: 950 !important;
+  margin-left: 0.08rem !important;
+}
+
+input,
+select,
+textarea {
+  border: 1.6px solid #9aa8b8 !important;
+  border-radius: 13px !important;
+  background: #ffffff !important;
+  box-shadow: inset 0 1px 0 rgba(15, 23, 42, 0.04), 0 0 0 1px rgba(15, 23, 42, 0.02) !important;
+}
+
+input:hover,
+select:hover,
+textarea:hover {
+  border-color: #526173 !important;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 4px rgba(12, 108, 242, 0.14) !important;
+}
+
+/* Oculta la leyenda Disponible / Seleccionado / No disponible */
+.color-legend {
+  display: none !important;
+}
+
+/* Botones de acciones de citas con el mismo ancho y mejor alineación */
+td[data-label="Acciones"] .inline-actions,
+.appointment-actions {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(165px, 1fr)) !important;
+  gap: 0.65rem !important;
+  align-items: stretch !important;
+}
+
+td[data-label="Acciones"] .button,
+td[data-label="Acciones"] a.button,
+td[data-label="Acciones"] button.button,
+.appointment-actions .button {
+  width: 100% !important;
+  min-width: 165px !important;
+  min-height: 58px !important;
+  padding-inline: 1rem !important;
+  text-align: center !important;
+}
+
+.login-illustration-inline {
+  width: min(280px, 100%);
+  margin: 0.45rem 0 0.2rem;
+  border-radius: 22px;
+  overflow: hidden;
+  background: #f8fbff;
+  border: 1px solid rgba(12, 108, 242, 0.12);
+  box-shadow: 0 14px 28px rgba(15, 31, 51, 0.08);
+}
+
+.login-illustration-inline img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* La ayuda visual no debe aparecer en celular */
+@media (max-width: 760px) {
+  .accessibility-tools {
+    display: none !important;
+  }
+
+  .topbar-inner {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    width: 100% !important;
+    padding-inline: 0.5rem !important;
+    overflow-x: auto !important;
+    gap: 0.45rem !important;
+  }
+
+  .brand {
+    width: auto !important;
+    justify-content: flex-start !important;
+    flex: 0 0 auto !important;
+  }
+
+  .brand-mark {
+    width: 38px !important;
+    height: 38px !important;
+  }
+
+  .brand strong {
+    font-size: 0.9rem !important;
+  }
+
+  .brand small {
+    font-size: 0.76rem !important;
+  }
+
+  .main-nav,
+  .header-actions {
+    width: auto !important;
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    overflow: visible !important;
+    flex: 0 0 auto !important;
+    gap: 0.35rem !important;
+  }
+
+  .main-nav a,
+  .header-actions .button {
+    width: auto !important;
+    min-width: max-content !important;
+    min-height: 42px !important;
+    padding: 0.5rem 0.7rem !important;
+    font-size: 0.82rem !important;
+    border-radius: 12px !important;
+  }
+
+  .header-button {
+    min-width: max-content !important;
+  }
+
+  .main-nav a.active::after,
+  .header-actions .button.active::after {
+    display: none !important;
+  }
+
+  .nav-svg {
+    width: 1rem !important;
+    height: 1rem !important;
+  }
+
+  td[data-label="Acciones"] .inline-actions,
+  .appointment-actions {
+    grid-template-columns: 1fr !important;
+  }
+
+  td[data-label="Acciones"] .button,
+  td[data-label="Acciones"] a.button,
+  td[data-label="Acciones"] button.button {
+    min-width: 0 !important;
+  }
+
+  .auth-shell {
+    grid-template-columns: 1fr !important;
+  }
+
+  .login-illustration-inline {
+    width: min(230px, 100%);
+  }
+}
+
+
+/* Ajustes finales v5: header limpio, activo visible sin scroll y login horizontal */
+.topbar {
+  overflow: visible !important;
+}
+
+.topbar-inner {
+  width: min(1220px, calc(100% - 2rem)) !important;
+  display: grid !important;
+  grid-template-columns: auto minmax(0, 1fr) auto !important;
+  align-items: center !important;
+  gap: 0.85rem !important;
+  padding: 0.72rem 0 1.18rem !important;
+  overflow: visible !important;
+}
+
+.brand {
+  min-width: 190px !important;
+  flex: 0 0 auto !important;
+}
+
+.main-nav {
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  justify-content: center !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+  min-width: 0 !important;
+  overflow: visible !important;
+  padding: 0 !important;
+}
+
+.header-actions {
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  justify-content: flex-end !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+  min-width: 0 !important;
+  overflow: visible !important;
+}
+
+.main-nav a,
+.header-actions .button {
+  min-height: 48px !important;
+  padding: 0.62rem 0.9rem !important;
+  border-radius: 14px !important;
+  font-size: 0.92rem !important;
+  line-height: 1.1 !important;
+  white-space: nowrap !important;
+  position: relative !important;
+}
+
+.header-button {
+  min-width: 145px !important;
+}
+
+.main-nav a.active::after,
+.header-actions .button.active::after {
+  content: "Estás aquí" !important;
+  position: absolute !important;
+  left: 50% !important;
+  bottom: -1.35rem !important;
+  transform: translateX(-50%) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: #10284b !important;
+  color: #ffffff !important;
+  font-size: 0.66rem !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.01em !important;
+  padding: 0.2rem 0.5rem !important;
+  border-radius: 999px !important;
+  box-shadow: 0 8px 18px rgba(16, 40, 75, 0.18) !important;
+  z-index: 50 !important;
+  pointer-events: none !important;
+  white-space: nowrap !important;
+}
+
+.auth-shell {
+  align-items: center !important;
+}
+
+.auth-copy {
+  display: grid !important;
+  gap: 0.8rem !important;
+  align-content: start !important;
+}
+
+.login-illustration-inline {
+  width: min(560px, 100%) !important;
+  margin: 0.4rem 0 0 !important;
+  border-radius: 26px !important;
+  background: #f8fbff !important;
+  border: 1px solid rgba(12, 108, 242, 0.16) !important;
+  box-shadow: 0 18px 38px rgba(16, 40, 75, 0.1) !important;
+  overflow: hidden !important;
+}
+
+.login-illustration-inline img {
+  display: block !important;
+  width: 100% !important;
+  height: auto !important;
+  max-height: 330px !important;
+  object-fit: contain !important;
+}
+
+/* Responsive real para celular: sin barra horizontal, botones compactos y bonitos */
+@media (max-width: 900px) {
+  .topbar-inner {
+    width: min(100% - 1rem, 1220px) !important;
+    grid-template-columns: 1fr !important;
+    gap: 0.55rem !important;
+    padding: 0.65rem 0 !important;
+  }
+
+  .brand {
+    width: 100% !important;
+    min-width: 0 !important;
+    justify-content: center !important;
+    gap: 0.65rem !important;
+  }
+
+  .main-nav,
+  .header-actions {
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.45rem !important;
+    overflow: visible !important;
+  }
+
+  .main-nav a,
+  .header-actions .button {
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 44px !important;
+    padding: 0.55rem 0.45rem !important;
+    border-radius: 13px !important;
+    font-size: 0.84rem !important;
+    justify-content: center !important;
+    text-align: center !important;
+    white-space: normal !important;
+  }
+
+  .main-nav a[href="/preguntas-frecuentes"] {
+    grid-column: 1 / -1 !important;
+  }
+
+  .main-nav a.active::after,
+  .header-actions .button.active::after {
+    position: static !important;
+    transform: none !important;
+    margin-left: 0.35rem !important;
+    padding: 0.14rem 0.38rem !important;
+    font-size: 0.58rem !important;
+    box-shadow: none !important;
+  }
+
+  .nav-svg {
+    width: 1rem !important;
+    height: 1rem !important;
+  }
+
+  .auth-shell {
+    grid-template-columns: 1fr !important;
+    gap: 1.1rem !important;
+  }
+
+  .auth-copy {
+    text-align: left !important;
+  }
+
+  .login-illustration-inline {
+    width: 100% !important;
+    border-radius: 20px !important;
+  }
+
+  .login-illustration-inline img {
+    max-height: 220px !important;
+  }
+}
+
+@media (max-width: 520px) {
+  .topbar-inner {
+    width: min(100% - 0.75rem, 1220px) !important;
+  }
+
+  .brand-mark {
+    width: 38px !important;
+    height: 38px !important;
+    border-radius: 12px !important;
+  }
+
+  .brand strong {
+    font-size: 0.95rem !important;
+  }
+
+  .brand small {
+    font-size: 0.78rem !important;
+  }
+
+  .main-nav,
+  .header-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .main-nav a,
+  .header-actions .button {
+    min-height: 42px !important;
+    padding: 0.5rem 0.35rem !important;
+    font-size: 0.8rem !important;
+    gap: 0.25rem !important;
+  }
+
+  .main-nav a[href="/preguntas-frecuentes"] {
+    grid-column: 1 / -1 !important;
+  }
+
+  .page-container {
+    padding-top: 1rem !important;
+    overflow-x: hidden !important;
+  }
+
+  .section-card,
+  .hero-card {
+    border-radius: 20px !important;
+  }
+}

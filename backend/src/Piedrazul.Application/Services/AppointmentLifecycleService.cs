@@ -79,6 +79,9 @@ public sealed class AppointmentLifecycleService(
         if (targetProvider is null)
             return OperationResult<AppointmentResponse>.Validation("El médico o terapista seleccionado no está disponible.");
 
+        if (!string.Equals(appointment.Provider?.Specialty, targetProvider.Specialty, StringComparison.OrdinalIgnoreCase))
+            return OperationResult<AppointmentResponse>.Validation("La reprogramación debe mantenerse en la misma especialidad. Si necesitas otra especialidad, cancela la cita y agenda una nueva.");
+
         var slotResult = await _availability.ResolveSlotAsync(targetProviderId, request.NewDate, request.NewStartTime, cancellationToken);
         if (!slotResult.Succeeded || slotResult.Data is null)
             return OperationResult<AppointmentResponse>.Validation(slotResult.Errors.ToArray());

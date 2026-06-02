@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { hasInternalAccess, hasSettingsAccess, isDoctorRole } from '../utils/validators';
@@ -52,6 +53,10 @@ export function AppLayout({ children }: LayoutProps) {
   const doctorAccess = isDoctorRole(session?.roles ?? []);
   const isPatient = session?.roles.includes('Patient') ?? false;
 
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  }, [location.pathname]);
+
   return (
     <div className="app-shell">
       <header className="topbar">
@@ -76,9 +81,11 @@ export function AppLayout({ children }: LayoutProps) {
                   Reservar cita
                 </NavLink>
                 {isPatient && <NavLink to="/portal/paciente">Mi portal</NavLink>}
+                <NavLink to="/preguntas-frecuentes">Preguntas frecuentes</NavLink>
               </>
             )}
             {isInternalRoute && internalAccess && <NavLink to="/portal/interno/citas">Portal interno</NavLink>}
+            {isInternalRoute && internalAccess && <NavLink to="/preguntas-frecuentes">Preguntas frecuentes</NavLink>}
             {isInternalRoute && settingsAccess && <NavLink to="/portal/interno/configuracion">Configuración</NavLink>}
             {isInternalRoute && doctorAccess && <NavLink to="/portal/interno/perfil">Mi perfil</NavLink>}
           </nav>
@@ -120,6 +127,7 @@ export function AppLayout({ children }: LayoutProps) {
         {!isInternalRoute && (
           <div className="footer-links">
             <Link to="/reservar">Reservar cita</Link>
+            <Link to="/preguntas-frecuentes">Preguntas frecuentes</Link>
             {!session && <Link to="/iniciar-sesion">Iniciar sesión</Link>}
             <Link to="/portal/interno/login">Acceso interno</Link>
           </div>

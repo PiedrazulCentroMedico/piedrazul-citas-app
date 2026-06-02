@@ -5,7 +5,8 @@ import { PortalTabs } from '../components/PortalTabs';
 import type { Gender, PatientLookup, ProviderSchedule } from '../types';
 import { readInternalDirectory, saveInternalDirectory, type InternalDirectoryAccount } from '../utils/adminDirectory';
 import { getLinkedProviderId } from '../utils/sessionStorage';
-import { sanitizeNameInput } from '../utils/validators';
+import { getOlderAdultBirthDateWarning, validatePatientForm, sanitizeNameInput } from '../utils/validators';
+import { hashPassword } from '../utils/passwordHash';
 
 
 export function AdminUsersPage() {
@@ -17,8 +18,9 @@ export function AdminUsersPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [editingAccount, setEditingAccount] = useState<InternalDirectoryAccount | null>(null);
   const [editingPatient, setEditingPatient] = useState<PatientLookup | null>(null);
-  const [accountForm, setAccountForm] = useState({ displayName: '', email: '', documentNumber: '' });
+  const [accountForm, setAccountForm] = useState({ displayName: '', email: '', documentNumber: '', password: '' });
   const [patientForm, setPatientForm] = useState<{ documentNumber: string; firstName: string; lastName: string; phone: string; gender: Gender; birthDate: string; email: string }>({ documentNumber: '', firstName: '', lastName: '', phone: '', gender: 'Male', birthDate: '', email: '' });
+  const patientBirthDateWarning = getOlderAdultBirthDateWarning(patientForm.birthDate);
 
   const tabs = useMemo(() => [
     { to: '/portal/interno/citas', label: 'Listado de citas' },
@@ -84,21 +86,42 @@ export function AdminUsersPage() {
       displayName: account.displayName,
       email: account.email ?? '',
       documentNumber: account.documentNumber ?? '',
+      password: '',
     });
   };
 
-  const saveAccount = () => {
+  const normalizeCorporateEmail = (value: string) => {
+    const base = value.trim().toLowerCase();
+    if (!base) return '';
+    if (base.endsWith('@piedrazul.local')) return base;
+    const localPart = base.includes('@') ? base.split('@')[0] : base;
+    return `${localPart}@piedrazul.local`;
+  };
+
+  const saveAccount = async () => {
     if (!editingAccount) return;
+    const corporateEmail = normalizeCorporateEmail(accountForm.email);
+    if (!corporateEmail) {
+      setMessage('El correo corporativo es obligatorio y debe terminar en @piedrazul.local.');
+      return;
+    }
+    if (accountForm.password.trim() && accountForm.password.trim().length < 8) {
+      setMessage('La nueva contraseña debe tener mínimo 8 caracteres.');
+      return;
+    }
+
+    const newPassword = accountForm.password.trim() ? await hashPassword(accountForm.password.trim()) : null;
     const updatedAccounts = readInternalDirectory().map((item) => item.subject === editingAccount.subject ? {
       ...item,
       displayName: sanitizeNameInput(accountForm.displayName),
-      email: accountForm.email.trim(),
+      email: corporateEmail,
       documentNumber: accountForm.documentNumber.trim(),
+      password: newPassword ?? item.password,
     } : item);
     saveInternalDirectory(updatedAccounts);
     setInternalUsers(updatedAccounts);
     setEditingAccount(null);
-    setMessage('El usuario interno fue actualizado correctamente.');
+    setMessage(accountForm.password.trim() ? 'El usuario interno y su contraseña fueron actualizados correctamente.' : 'El usuario interno fue actualizado correctamente.');
   };
 
   const deleteDoctor = async (account: InternalDirectoryAccount) => {
@@ -142,6 +165,11 @@ export function AdminUsersPage() {
 
   const savePatient = async () => {
     if (!session || !editingPatient) return;
+    const errors = validatePatientForm(patientForm);
+    if (errors.length > 0) {
+      setMessage(errors[0]);
+      return;
+    }
     try {
       const updated = await apiRequest<PatientLookup>(`/api/admin/patients/${editingPatient.id}`, session, {
         method: 'PUT',
@@ -174,13 +202,13 @@ export function AdminUsersPage() {
         <h2>Usuarios internos</h2>
         <div className="table-wrapper">
           <table>
-            <thead><tr><th>Nombre</th><th>Cédula</th><th>Correo</th><th>Rol</th><th>Acciones</th></tr></thead>
+            <thead><tr><th>Nombre</th><th>Cédula <span className="required-star">*</span></th><th>Correo</th><th>Rol</th><th>Acciones</th></tr></thead>
             <tbody>
               {filteredInternalUsers.map((account) => (
                 <tr key={account.subject}>
                   <td>{account.displayName}</td>
                   <td>{account.documentNumber ?? '—'}</td>
-                  <td>{account.email ?? '—'}</td>
+                  <td>{account.email ? normalizeCorporateEmail(account.email) : '—'}</td>
                   <td>{account.roles.join(', ')}</td>
                   <td>
                     <div className="inline-actions wrap">
@@ -199,7 +227,7 @@ export function AdminUsersPage() {
         <h2>Pacientes registrados por documento</h2>
         <div className="table-wrapper">
           <table>
-            <thead><tr><th>Nombre</th><th>Cédula</th><th>Celular</th><th>Correo</th><th>Cuenta</th><th>Acciones</th></tr></thead>
+            <thead><tr><th>Nombre</th><th>Cédula <span className="required-star">*</span></th><th>Celular <span className="required-star">*</span></th><th>Correo</th><th>Cuenta</th><th>Acciones</th></tr></thead>
             <tbody>
               {patients.map((patient) => (
                 <tr key={patient.id}>
@@ -222,13 +250,14 @@ export function AdminUsersPage() {
           <div className="modal-card stack-md">
             <h2>Editar usuario interno</h2>
             <div className="form-grid">
-              <label>Nombre<input value={accountForm.displayName} onChange={(event) => setAccountForm((current) => ({ ...current, displayName: event.target.value }))} /></label>
-              <label>Cédula<input value={accountForm.documentNumber} onChange={(event) => setAccountForm((current) => ({ ...current, documentNumber: event.target.value }))} /></label>
-              <label className="span-two">Correo<input value={accountForm.email} onChange={(event) => setAccountForm((current) => ({ ...current, email: event.target.value }))} /></label>
+              <label>Nombre <span className="required-star">*</span><input value={accountForm.displayName} onChange={(event) => setAccountForm((current) => ({ ...current, displayName: event.target.value }))} /></label>
+              <label>Cédula <span className="required-star">*</span><input value={accountForm.documentNumber} onChange={(event) => setAccountForm((current) => ({ ...current, documentNumber: event.target.value }))} /></label>
+              <label>Correo corporativo <span className="required-star">*</span><input value={accountForm.email} onChange={(event) => setAccountForm((current) => ({ ...current, email: event.target.value }))} onBlur={(event) => setAccountForm((current) => ({ ...current, email: normalizeCorporateEmail(event.target.value) }))} placeholder="usuario@piedrazul.local" /></label>
+              <label>Nueva contraseña<input type="password" value={accountForm.password} onChange={(event) => setAccountForm((current) => ({ ...current, password: event.target.value }))} placeholder="Déjala vacía para conservarla" /></label>
             </div>
             <div className="inline-actions end wrap">
               <button type="button" className="button button-secondary" onClick={() => setEditingAccount(null)}>Cerrar</button>
-              <button type="button" className="button" onClick={saveAccount}>Guardar cambios</button>
+              <button type="button" className="button" onClick={() => void saveAccount()}>Guardar cambios</button>
             </div>
           </div>
         </div>
@@ -239,12 +268,12 @@ export function AdminUsersPage() {
           <div className="modal-card stack-md">
             <h2>Editar paciente</h2>
             <div className="form-grid">
-              <label>Cédula<input value={patientForm.documentNumber} onChange={(event) => setPatientForm((current) => ({ ...current, documentNumber: event.target.value }))} /></label>
-              <label>Celular<input value={patientForm.phone} onChange={(event) => setPatientForm((current) => ({ ...current, phone: event.target.value }))} /></label>
-              <label>Nombres<input value={patientForm.firstName} onChange={(event) => setPatientForm((current) => ({ ...current, firstName: sanitizeNameInput(event.target.value) }))} /></label>
-              <label>Apellidos<input value={patientForm.lastName} onChange={(event) => setPatientForm((current) => ({ ...current, lastName: sanitizeNameInput(event.target.value) }))} /></label>
-              <label>Género<select value={patientForm.gender} onChange={(event) => setPatientForm((current) => ({ ...current, gender: event.target.value as Gender }))}><option value="Male">Hombre</option><option value="Female">Mujer</option><option value="Other">Otro</option></select></label>
-              <label>Fecha de nacimiento<input type="date" value={patientForm.birthDate} onChange={(event) => setPatientForm((current) => ({ ...current, birthDate: event.target.value }))} /></label>
+              <label>Cédula <span className="required-star">*</span><input value={patientForm.documentNumber} onChange={(event) => setPatientForm((current) => ({ ...current, documentNumber: event.target.value }))} /></label>
+              <label>Celular <span className="required-star">*</span><input value={patientForm.phone} onChange={(event) => setPatientForm((current) => ({ ...current, phone: event.target.value }))} /></label>
+              <label>Nombres <span className="required-star">*</span><input value={patientForm.firstName} onChange={(event) => setPatientForm((current) => ({ ...current, firstName: sanitizeNameInput(event.target.value) }))} /></label>
+              <label>Apellidos <span className="required-star">*</span><input value={patientForm.lastName} onChange={(event) => setPatientForm((current) => ({ ...current, lastName: sanitizeNameInput(event.target.value) }))} /></label>
+              <label>Género <span className="required-star">*</span><select value={patientForm.gender} onChange={(event) => setPatientForm((current) => ({ ...current, gender: event.target.value as Gender }))}><option value="Male">Hombre</option><option value="Female">Mujer</option><option value="Other">Otro</option></select></label>
+              <label>Fecha de nacimiento <span className="required-star">*</span><input type="date" value={patientForm.birthDate} onChange={(event) => setPatientForm((current) => ({ ...current, birthDate: event.target.value }))} />{patientBirthDateWarning && <small className="field-warning">{patientBirthDateWarning}</small>}</label>
               <label className="span-two">Correo<input value={patientForm.email} onChange={(event) => setPatientForm((current) => ({ ...current, email: event.target.value }))} /></label>
             </div>
             <div className="inline-actions end wrap">

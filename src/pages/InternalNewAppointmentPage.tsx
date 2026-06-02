@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { apiRequest } from '../api/http';
 import { useAuth } from '../auth/AuthContext';
 import { PortalTabs } from '../components/PortalTabs';
-import type { AppointmentResponse, AvailabilitySlot, Gender, GenderOption, InternalAppointmentPayload, PatientLookup, ProviderSummary } from '../types';
-import { formatDateLabel, hasSettingsAccess, sanitizeNameInput, validatePatientForm } from '../utils/validators';
+import type { AppointmentResponse, AvailabilitySlot, Gender, GenderOption, InternalAppointmentPayload, PatientLookup, ProviderSummary, SystemSettings } from '../types';
+import { formatDateLabel, getOlderAdultBirthDateWarning, hasSettingsAccess, sanitizeNameInput, validatePatientForm } from '../utils/validators';
 
 const initialForm = {
   providerId: '',
@@ -21,6 +21,41 @@ const initialForm = {
   channel: 'WhatsApp',
 };
 
+
+
+function toLocalDateInputValue(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function addDays(date: Date, days: number) {
+  const copy = new Date(date);
+  copy.setDate(copy.getDate() + days);
+  return copy;
+}
+
+function daysBetweenToday(dateValue: string) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const target = new Date(`${dateValue}T00:00:00`);
+  return Math.max(0, Math.floor((target.getTime() - today.getTime()) / 86400000));
+}
+
+function formatShortDay(date: Date) {
+  return new Intl.DateTimeFormat('es-CO', { weekday: 'short', day: '2-digit', month: 'short' }).format(date);
+}
+
+function buildDateOptions(offset: number, maxSelectableDays: number) {
+  const today = new Date();
+  const startDate = addDays(today, offset);
+  return Array.from({ length: 7 }, (_, index) => {
+    const absoluteOffset = offset + index;
+    const date = addDays(startDate, index);
+    return { value: toLocalDateInputValue(date), label: formatShortDay(date), isOverflowLimit: absoluteOffset > maxSelectableDays };
+  });
+}
 
 function normalizeSpecialty(value: string) {
   return value.normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
@@ -45,6 +80,9 @@ export function InternalNewAppointmentPage() {
   const navigate = useNavigate();
   const { session } = useAuth();
   const [providers, setProviders] = useState<ProviderSummary[]>([]);
+  const [settings, setSettings] = useState<SystemSettings>({ weeksAheadBooking: 6, timeZoneId: 'America/Bogota' });
+  const [dateOffset, setDateOffset] = useState(0);
+  const [weekLimitModal, setWeekLimitModal] = useState(false);
   const [selectedSpecialtyKey, setSelectedSpecialtyKey] = useState('');
   const [form, setForm] = useState(initialForm);
   const [slots, setSlots] = useState<AvailabilitySlot[]>([]);
@@ -68,6 +106,10 @@ export function InternalNewAppointmentPage() {
 
   useEffect(() => {
     if (!session) return;
+
+    apiRequest<SystemSettings>('/api/public/settings', session)
+      .then(setSettings)
+      .catch(() => undefined);
 
     apiRequest<ProviderSummary[]>('/api/public/providers', session)
       .then((data) => {
@@ -93,6 +135,10 @@ export function InternalNewAppointmentPage() {
   const specialtyOptions = useMemo(() => buildUniqueSpecialties(providers), [providers]);
   const selectedSpecialtyKeySafe = selectedSpecialtyKey || normalizeSpecialty(selectedProvider?.specialty ?? specialtyOptions[0]?.label ?? '');
   const filteredProviders = useMemo(() => providers.filter((provider) => normalizeSpecialty(provider.specialty) === selectedSpecialtyKeySafe), [providers, selectedSpecialtyKeySafe]);
+  const maxSelectableDays = settings.weeksAheadBooking * 7;
+  const displayUntilWarningDays = maxSelectableDays + 7;
+  const dateOptions = useMemo(() => buildDateOptions(dateOffset, maxSelectableDays), [dateOffset, maxSelectableDays]);
+  const birthDateWarning = useMemo(() => getOlderAdultBirthDateWarning(form.birthDate), [form.birthDate]);
 
   const handleSpecialtySelected = (specialtyKey: string) => {
     setSelectedSpecialtyKey(specialtyKey);
@@ -101,6 +147,12 @@ export function InternalNewAppointmentPage() {
   };
 
   const handleChange = (field: keyof typeof form, value: string) => {
+    if (field === 'appointmentDate' && daysBetweenToday(value) > maxSelectableDays) {
+      setWeekLimitModal(true);
+      setAppointmentMessage(`Solo se pueden reservar citas dentro de las próximas ${settings.weeksAheadBooking} semanas para este profesional.`);
+      return;
+    }
+
     setForm((current) => ({
       ...current,
       [field]: value,
@@ -165,6 +217,7 @@ export function InternalNewAppointmentPage() {
     if (form.lastName.trim().length < 2) nextErrors.lastName = true;
     if (!/^\d{10}$/.test(form.phone.trim())) nextErrors.phone = true;
     if (form.email.trim() && !/^\S+@\S+\.\S+$/.test(form.email.trim())) nextErrors.email = true;
+    if (!form.birthDate) nextErrors.birthDate = true;
     if (!form.providerId) nextErrors.providerId = true;
     if (!form.appointmentDate) nextErrors.appointmentDate = true;
     if (!form.startTime) nextErrors.startTime = true;
@@ -174,6 +227,7 @@ export function InternalNewAppointmentPage() {
     if (!form.providerId) errors.push('Selecciona un profesional.');
     if (!form.appointmentDate) errors.push('Selecciona una fecha.');
     if (!form.startTime) errors.push('Selecciona una franja horaria.');
+    if (form.appointmentDate && daysBetweenToday(form.appointmentDate) > maxSelectableDays) errors.push(`Solo se pueden reservar citas dentro de las próximas ${settings.weeksAheadBooking} semanas.`);
     if (form.notes.length > 500) errors.push('Las observaciones no pueden superar 500 caracteres.');
 
     if (errors.length > 0 || Object.values(nextErrors).some(Boolean)) {
@@ -232,7 +286,7 @@ export function InternalNewAppointmentPage() {
           <h2>Datos del paciente</h2>
           <div className="form-grid internal-filter-grid">
             <label>
-              Documento
+              Documento <span className="required-star">*</span>
               <input className={fieldErrors.documentNumber ? 'input-error' : ''} inputMode="numeric" maxLength={20} value={form.documentNumber} onChange={(event) => handleChange('documentNumber', event.target.value.replace(/\D/g, ''))} />
             </label>
             <div className="inline-actions end align-end">
@@ -272,19 +326,19 @@ export function InternalNewAppointmentPage() {
 
           <div className="form-grid">
             <label>
-              Nombres
+              Nombres <span className="required-star">*</span>
               <input className={fieldErrors.firstName ? 'input-error' : ''} maxLength={80} value={form.firstName} onChange={(event) => handleChange('firstName', sanitizeNameInput(event.target.value))} />
             </label>
             <label>
-              Apellidos
+              Apellidos <span className="required-star">*</span>
               <input className={fieldErrors.lastName ? 'input-error' : ''} maxLength={80} value={form.lastName} onChange={(event) => handleChange('lastName', sanitizeNameInput(event.target.value))} />
             </label>
             <label>
-              Celular
+              Celular <span className="required-star">*</span>
               <input className={fieldErrors.phone ? 'input-error' : ''} inputMode="numeric" maxLength={15} value={form.phone} onChange={(event) => handleChange('phone', event.target.value.replace(/\D/g, ''))} />
             </label>
             <label>
-              Género
+              Género <span className="required-star">*</span>
               <select className={fieldErrors.gender ? 'input-error' : ''} value={form.gender} onChange={(event) => handleChange('gender', event.target.value)}>
                 <option value="">Seleccionar género</option>
                 <option value="Female">Mujer</option>
@@ -293,8 +347,9 @@ export function InternalNewAppointmentPage() {
               </select>
             </label>
             <label>
-              Fecha de nacimiento
+              Fecha de nacimiento <span className="required-star">*</span>
               <input className={fieldErrors.birthDate ? 'input-error' : ''} type="date" value={form.birthDate} onChange={(event) => handleChange('birthDate', event.target.value)} />
+              {birthDateWarning && <small className="field-warning">{birthDateWarning}</small>}
             </label>
             <label>
               Correo electrónico
@@ -337,12 +392,29 @@ export function InternalNewAppointmentPage() {
               <span>Cuando selecciones la fecha aparecerán las horas disponibles.</span>
             </div>
             <div className="form-grid">
+              <div className="span-two internal-date-strip-field">
+                <span className="field-label">Fecha de la cita <span className="required-star">*</span></span>
+                <div className={`date-strip ${fieldErrors.appointmentDate ? 'input-error' : ''}`} aria-label="Seleccionar fecha de la cita">
+                  <button type="button" className="date-strip-arrow" onClick={() => setDateOffset((current) => Math.max(0, current - 7))} disabled={dateOffset === 0} aria-label="Ver fechas anteriores">‹</button>
+                  <div className="date-strip-days">
+                    {dateOptions.map((dateOption) => (
+                      <button
+                        key={dateOption.value}
+                        type="button"
+                        className={`date-option ${form.appointmentDate === dateOption.value ? 'selected' : ''} ${dateOption.isOverflowLimit ? 'limit-blocked' : ''}`}
+                        onClick={() => dateOption.isOverflowLimit ? setWeekLimitModal(true) : handleChange('appointmentDate', dateOption.value)}
+                      >
+                        <strong>{dateOption.label}</strong>
+                        {dateOption.isOverflowLimit && <small>Límite máximo</small>}
+                      </button>
+                    ))}
+                  </div>
+                  <button type="button" className="date-strip-arrow" onClick={() => { const next = dateOffset + 7; if (next > displayUntilWarningDays) { setWeekLimitModal(true); return; } setDateOffset(next); }} aria-label="Ver más fechas">›</button>
+                </div>
+                {form.appointmentDate && <small className="muted-text">Fecha seleccionada: {formatDateLabel(form.appointmentDate)}</small>}
+              </div>
               <label>
-                Fecha de la cita
-                <input className={fieldErrors.appointmentDate ? 'input-error' : ''} type="date" value={form.appointmentDate} onChange={(event) => handleChange('appointmentDate', event.target.value)} />
-              </label>
-              <label>
-                Canal de contacto
+                Canal de contacto <span className="required-star">*</span>
                 <select value={form.channel} onChange={(event) => handleChange('channel', event.target.value)}>
                   <option value="WhatsApp">WhatsApp</option>
                   <option value="Phone">Llamada</option>
@@ -385,6 +457,17 @@ export function InternalNewAppointmentPage() {
           </button>
         </div>
       </form>
+
+      {weekLimitModal && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true">
+          <section className="modal-card compact-modal stack-md">
+            <span className="eyebrow eyebrow-warning">Límite de agenda</span>
+            <h2>Este profesional solo permite reservar hasta {settings.weeksAheadBooking} semanas adelante</h2>
+            <p className="muted-text">La última semana visible queda bloqueada para evitar reservas fuera del rango configurado.</p>
+            <div className="inline-actions end"><button type="button" className="button" onClick={() => setWeekLimitModal(false)}>Entendido</button></div>
+          </section>
+        </div>
+      )}
 
       {success && (
         <div className="modal-backdrop" role="dialog" aria-modal="true">

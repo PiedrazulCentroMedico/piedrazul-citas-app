@@ -295,6 +295,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const session = isInternalRoute ? internalSession : patientSession;
 
+  useEffect(() => {
+    if (!patientSession && !internalSession) return;
+
+    let timeoutId = window.setTimeout(() => {
+      saveStoredSession(PATIENT_SESSION_STORAGE_KEY, null);
+      saveStoredSession(INTERNAL_SESSION_STORAGE_KEY, null);
+      setPatientSession(null);
+      setInternalSession(null);
+      window.location.href = '/';
+    }, 20 * 60 * 1000);
+
+    const resetTimer = () => {
+      window.clearTimeout(timeoutId);
+      timeoutId = window.setTimeout(() => {
+        saveStoredSession(PATIENT_SESSION_STORAGE_KEY, null);
+        saveStoredSession(INTERNAL_SESSION_STORAGE_KEY, null);
+        setPatientSession(null);
+        setInternalSession(null);
+        window.location.href = '/';
+      }, 20 * 60 * 1000);
+    };
+
+    const events: Array<keyof WindowEventMap> = ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart'];
+    events.forEach((eventName) => window.addEventListener(eventName, resetTimer, { passive: true }));
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      events.forEach((eventName) => window.removeEventListener(eventName, resetTimer));
+    };
+  }, [internalSession, patientSession]);
+
   const value = useMemo<AuthContextValue>(() => ({
     ready,
     session,
@@ -429,7 +460,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      const normalizedEmail = payload.email.trim().toLowerCase();
+      const normalizedEmail = (() => {
+        const base = payload.email.trim().toLowerCase();
+        if (base.endsWith('@piedrazul.local')) return base;
+        const localPart = base.includes('@') ? base.split('@')[0] : base;
+        return `${localPart}@piedrazul.local`;
+      })();
       const accounts = readAccounts();
       if (accounts.some((item) => (item.email ?? '').toLowerCase() === normalizedEmail)) {
         throw new Error('Ya existe una cuenta interna con ese correo.');

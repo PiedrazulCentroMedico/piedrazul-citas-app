@@ -147,7 +147,7 @@ public sealed class AdministrationService(
 
     public async Task<OperationResult<PatientLookupResponse>> UpdatePatientAsync(Guid patientId, PatientProfileUpsertRequest request, CancellationToken cancellationToken = default)
     {
-        var errors = PatientInputValidator.ValidateBasicPatientData(request.DocumentNumber, request.FirstName, request.LastName, request.Phone, request.Email).ToList();
+        var errors = PatientInputValidator.ValidateBasicPatientData(request.DocumentNumber, request.FirstName, request.LastName, request.Phone, request.Email, request.BirthDate).ToList();
         if (errors.Count > 0)
             return OperationResult<PatientLookupResponse>.Validation(errors.ToArray());
 

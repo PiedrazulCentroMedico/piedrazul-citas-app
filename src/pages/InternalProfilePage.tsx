@@ -102,7 +102,7 @@ export function InternalProfilePage() {
       <section className="section-card stack-md">
         <div className="form-grid">
           <label>
-            Correo corporativo
+            Correo corporativo <span className="required-star">*</span>
             <input value={session?.email ?? ''} disabled />
           </label>
           <label>

@@ -1,15 +1,16 @@
-import { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { translateStatusLabel } from '../utils/status';
 import { apiRequest } from '../api/http';
 import { useAuth } from '../auth/AuthContext';
 import { PortalTabs } from '../components/PortalTabs';
-import type { AppointmentResponse } from '../types';
+import type { AppointmentHistoryResponse, AppointmentResponse } from '../types';
 import { formatDateLabel } from '../utils/validators';
 
 const tabs = [
   { to: '/portal/paciente', label: 'Mis citas' },
   { to: '/portal/paciente/perfil', label: 'Mi perfil' },
+  { to: '/preguntas-frecuentes', label: 'Preguntas frecuentes' },
 ];
 
 function isCancelledAppointment(appointment: AppointmentResponse) {
@@ -29,6 +30,8 @@ export function PatientDashboardPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [cancelTarget, setCancelTarget] = useState<AppointmentResponse | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [historyByAppointment, setHistoryByAppointment] = useState<Record<string, AppointmentHistoryResponse[]>>({});
+  const [historyLoadingId, setHistoryLoadingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!session) return;
@@ -44,6 +47,29 @@ export function PatientDashboardPage() {
       .sort((first, second) => `${first.appointmentDate}${first.startTime}`.localeCompare(`${second.appointmentDate}${second.startTime}`))
       .find((appointment) => new Date(`${appointment.appointmentDate}T${appointment.startTime}:00`).getTime() >= Date.now() && translateStatusLabel(appointment.status) === 'Programada');
   }, [appointments]);
+
+
+  const toggleHistory = async (appointmentId: string) => {
+    if (!session) return;
+    if (historyByAppointment[appointmentId]) {
+      setHistoryByAppointment((current) => {
+        const next = { ...current };
+        delete next[appointmentId];
+        return next;
+      });
+      return;
+    }
+
+    try {
+      setHistoryLoadingId(appointmentId);
+      const history = await apiRequest<AppointmentHistoryResponse[]>(`/api/patient/appointments/${appointmentId}/history`, session);
+      setHistoryByAppointment((current) => ({ ...current, [appointmentId]: history }));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'No fue posible consultar el historial de reprogramaciones.');
+    } finally {
+      setHistoryLoadingId(null);
+    }
+  };
 
   const confirmCancel = async () => {
     if (!session || !cancelTarget) return;
@@ -74,13 +100,13 @@ export function PatientDashboardPage() {
       <PortalTabs items={tabs} />
 
       <section className="grid-two">
-        <article className="section-card">
+        <article className="section-card next-appointment-card">
+          <span className="eyebrow">Tu agenda</span>
           <h2>Próxima cita</h2>
           {nextAppointment ? (
-            <div className="stack-sm">
-              <strong>{nextAppointment.providerName}</strong>
-              <span>{nextAppointment.specialty}</span>
-              <span>{formatDateLabel(nextAppointment.appointmentDate)} · {nextAppointment.startTime}</span>
+            <div className="next-appointment-content">
+              <div className="next-date-badge"><strong>{nextAppointment.startTime}</strong><span>{formatDateLabel(nextAppointment.appointmentDate)}</span></div>
+              <div className="stack-xs"><strong>{nextAppointment.providerName}</strong><span>{nextAppointment.specialty}</span><small>Estado: {translateStatusLabel(nextAppointment.status)}</small></div>
             </div>
           ) : (
             <p className="muted-text">Aún no tienes una próxima cita registrada.</p>
@@ -89,7 +115,7 @@ export function PatientDashboardPage() {
 
         <article className="section-card">
           <h2>Acciones rápidas</h2>
-          <div className="inline-actions wrap">
+          <div className="inline-actions wrap appointment-actions">
             <Link className="button" to="/reservar">Reservar nueva cita</Link>
             <Link className="button button-secondary" to="/portal/paciente/perfil">Actualizar perfil</Link>
             <a className="button button-secondary" href="https://wa.me/573001234567" target="_blank" rel="noreferrer">Ayuda por WhatsApp</a>
@@ -120,7 +146,8 @@ export function PatientDashboardPage() {
                 {appointments.map((appointment) => {
                   const cancellable = canCancelAppointment(appointment);
                   return (
-                    <tr key={appointment.id} className={isCancelledAppointment(appointment) ? 'appointment-row-cancelled' : undefined}>
+                    <React.Fragment key={appointment.id}>
+                    <tr className={isCancelledAppointment(appointment) ? 'appointment-row-cancelled' : undefined}>
                       <td data-label="Fecha">{formatDateLabel(appointment.appointmentDate)}</td>
                       <td data-label="Hora">{appointment.startTime} - {appointment.endTime}</td>
                       <td data-label="Profesional">{appointment.providerName}</td>
@@ -128,12 +155,15 @@ export function PatientDashboardPage() {
                       <td data-label="Estado"><span className={`status-pill status-${translateStatusLabel(appointment.status).toLowerCase()}`}>{translateStatusLabel(appointment.status)}</span></td>
                       <td data-label="Canal">{appointment.channel}</td>
                       <td data-label="Acciones">
-                        <div className="inline-actions wrap">
+                        <div className="inline-actions wrap appointment-actions">
                           {cancellable && (
                             <button type="button" className="button button-ghost" onClick={() => setCancelTarget(appointment)}>
                               Cancelar cita
                             </button>
                           )}
+                          <button type="button" className="button button-secondary" onClick={() => void toggleHistory(appointment.id)}>
+                            {historyByAppointment[appointment.id] ? 'Ocultar historial' : historyLoadingId === appointment.id ? 'Cargando...' : 'Ver historial'}
+                          </button>
                           {translateStatusLabel(appointment.status) === 'Programada' && (
                             <Link className="button button-secondary" to={`/reservar?reprogramar=${appointment.id}`}>
                               Reprogramar cita
@@ -143,6 +173,27 @@ export function PatientDashboardPage() {
                         </div>
                       </td>
                     </tr>
+                    {historyByAppointment[appointment.id] && (
+                      <tr className="appointment-history-row">
+                        <td colSpan={7}>
+                          {historyByAppointment[appointment.id].length === 0 ? (
+                            <span className="helper-text">Esta cita aún no tiene historial de reprogramaciones.</span>
+                          ) : (
+                            <div className="history-list">
+                              {historyByAppointment[appointment.id].map((item) => (
+                                <div key={`${item.changedAtUtc}-${item.newDate}-${item.newStartTime}`} className="history-card">
+                                  <strong>{formatDateLabel(item.previousDate)} {item.previousStartTime} → {formatDateLabel(item.newDate)} {item.newStartTime}</strong>
+                                  <span>Motivo: {item.reason || 'Sin motivo registrado'}</span>
+                                  <span>Responsable: {item.changedBy}</span>
+                                  <small>{new Date(item.changedAtUtc).toLocaleString('es-CO')}</small>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                    </React.Fragment>
                   );
                 })}
               </tbody>

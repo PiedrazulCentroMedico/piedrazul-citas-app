@@ -9,13 +9,63 @@ export function sanitizeNameInput(value: string) {
   return value.replace(/[^A-Za-zÁÉÍÓÚáéíóúÑñÜü' -]/g, '').replace(/\s+/g, ' ');
 }
 
+export function getPatientBirthDateIssue(value?: string | null) {
+  const birthDate = normalizeText(value ?? '');
+  if (!birthDate) {
+    return 'La fecha de nacimiento es obligatoria.';
+  }
+
+  const birth = new Date(`${birthDate}T00:00:00`);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  if (Number.isNaN(birth.getTime())) {
+    return 'La fecha de nacimiento no es válida.';
+  }
+
+  if (birth > today) {
+    return 'La fecha de nacimiento no puede ser una fecha futura.';
+  }
+
+  let age = today.getFullYear() - birth.getFullYear();
+  const birthdayThisYear = new Date(today.getFullYear(), birth.getMonth(), birth.getDate());
+  if (today < birthdayThisYear) age -= 1;
+
+  if (age < 18) {
+    return 'El paciente debe ser mayor de edad para continuar.';
+  }
+
+  if (age > 100) {
+    return 'La edad registrada no puede superar los 100 años.';
+  }
+
+  return null;
+}
+
+export function getOlderAdultBirthDateWarning(value?: string | null) {
+  const birthDate = normalizeText(value ?? '');
+  if (!birthDate) return null;
+  const birth = new Date(`${birthDate}T00:00:00`);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  if (Number.isNaN(birth.getTime()) || birth > today) return null;
+
+  let age = today.getFullYear() - birth.getFullYear();
+  const birthdayThisYear = new Date(today.getFullYear(), birth.getMonth(), birth.getDate());
+  if (today < birthdayThisYear) age -= 1;
+
+  return age >= 80 && age <= 100
+    ? 'Verifica si la fecha de nacimiento es correcta. Si el dato está bien, puedes ignorar este mensaje.'
+    : null;
+}
+
 export function validatePatientForm(data: {
   documentNumber: string;
   firstName: string;
   lastName: string;
   phone: string;
   email?: string | null;
-  birthDate?: string | null; 
+  birthDate?: string | null;
 }) {
   const errors: string[] = [];
   const documentNumber = normalizeText(data.documentNumber);
@@ -43,20 +93,12 @@ export function validatePatientForm(data: {
   if (email && (email.length > 150 || !/^\S+@\S+\.\S+$/.test(email))) {
     errors.push('El correo electrónico no tiene un formato válido.');
   }
-    if (data.birthDate) {
-    const birth = new Date(data.birthDate);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const minYear = today.getFullYear() - 120;
 
-    if (isNaN(birth.getTime())) {
-      errors.push('La fecha de nacimiento no es válida.');
-    } else if (birth > today) {
-      errors.push('La fecha de nacimiento no puede ser una fecha futura.');
-    } else if (birth.getFullYear() < minYear) {
-      errors.push('La fecha de nacimiento no parece válida.');
-    }
+  const birthDateIssue = getPatientBirthDateIssue(data.birthDate);
+  if (birthDateIssue) {
+    errors.push(birthDateIssue);
   }
+
   return errors;
 }
 

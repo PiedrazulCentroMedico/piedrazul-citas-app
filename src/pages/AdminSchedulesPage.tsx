@@ -251,7 +251,16 @@ export function AdminSchedulesPage() {
     }
   };
 
+  const normalizeCorporateEmail = (value: string) => {
+    const base = value.trim().toLowerCase();
+    if (!base) return '';
+    if (base.endsWith('@piedrazul.local')) return base;
+    const localPart = base.includes('@') ? base.split('@')[0] : base;
+    return `${localPart}@piedrazul.local`;
+  };
+
   const createDoctor = async () => {
+    const corporateEmail = normalizeCorporateEmail(doctorForm.email);
     const nextDoctorErrors = {
       firstName: doctorForm.firstName.trim().length < 2,
       lastName: doctorForm.lastName.trim().length < 2,
@@ -265,9 +274,9 @@ export function AdminSchedulesPage() {
       return;
     }
 
-    if (!/^\S+@\S+\.\S+$/.test(doctorForm.email.trim())) {
+    if (!corporateEmail.endsWith('@piedrazul.local')) {
       setDoctorErrors((current) => ({ ...current, email: true }));
-      setDoctorMessage('Ingresa un correo corporativo válido.');
+      setDoctorMessage('El correo del personal interno debe terminar en @piedrazul.local.');
       return;
     }
 
@@ -292,9 +301,9 @@ export function AdminSchedulesPage() {
         body: schedulePayload,
       }));
       setSchedules((current) => [...current, provider]);
-      linkDoctorToProvider(doctorForm.email.trim(), provider.providerId);
+      linkDoctorToProvider(corporateEmail, provider.providerId);
       createInternalDemoAccount({
-        email: doctorForm.email.trim(),
+        email: corporateEmail,
         password: doctorForm.password,
         displayName: `${doctorForm.firstName.trim()} ${doctorForm.lastName.trim()}`,
         roles: ['Doctor'],
@@ -353,15 +362,15 @@ export function AdminSchedulesPage() {
           <p className="muted-text">Al crear el perfil, el sistema te llevará automáticamente a configurar sus franjas de atención.</p>
           <div className="form-grid">
             <label>
-              Nombres
+              Nombres <span className="required-star">*</span>
               <input className={doctorErrors.firstName ? 'input-error' : ''} value={doctorForm.firstName} onChange={(event) => { setDoctorForm((current) => ({ ...current, firstName: sanitizeNameInput(event.target.value) })); setDoctorErrors((current) => ({ ...current, firstName: false })); }} />
             </label>
             <label>
-              Apellidos
+              Apellidos <span className="required-star">*</span>
               <input className={doctorErrors.lastName ? 'input-error' : ''} value={doctorForm.lastName} onChange={(event) => { setDoctorForm((current) => ({ ...current, lastName: sanitizeNameInput(event.target.value) })); setDoctorErrors((current) => ({ ...current, lastName: false })); }} />
             </label>
             <label>
-              Especialidad
+              Especialidad <span className="required-star">*</span>
               <select className={doctorErrors.specialty ? 'input-error' : ''} value={doctorForm.specialty} onChange={(event) => { setDoctorForm((current) => ({ ...current, specialty: event.target.value })); setDoctorErrors((current) => ({ ...current, specialty: false })); }}>
                 {specialtyOptions.map((specialty) => (
                   <option key={specialty} value={specialty}>{specialty}</option>
@@ -369,11 +378,11 @@ export function AdminSchedulesPage() {
               </select>
             </label>
             <label>
-              Correo corporativo
-              <input className={doctorErrors.email ? 'input-error' : ''} type="email" value={doctorForm.email} onChange={(event) => { setDoctorForm((current) => ({ ...current, email: event.target.value })); setDoctorErrors((current) => ({ ...current, email: false })); }} />
+              Correo corporativo <span className="required-star">*</span>
+              <input className={doctorErrors.email ? 'input-error' : ''} type="email" value={doctorForm.email} placeholder="usuario@piedrazul.local" onBlur={(event) => setDoctorForm((current) => ({ ...current, email: normalizeCorporateEmail(event.target.value) }))} onChange={(event) => { setDoctorForm((current) => ({ ...current, email: event.target.value })); setDoctorErrors((current) => ({ ...current, email: false })); }} />
             </label>
             <label className="span-two">
-              Contraseña inicial
+              Contraseña inicial <span className="required-star">*</span>
               <div className="password-input-row">
                 <input className={doctorErrors.password ? 'input-error' : ''} type={showDoctorPassword ? 'text' : 'password'} value={doctorForm.password} onChange={(event) => { setDoctorForm((current) => ({ ...current, password: event.target.value })); setDoctorErrors((current) => ({ ...current, password: false })); }} />
                 <button type="button" className="button button-secondary password-toggle-button" onClick={() => setShowDoctorPassword((current) => !current)}>
@@ -397,7 +406,7 @@ export function AdminSchedulesPage() {
         {!isDoctor && <p className="muted-text">Aquí editas el profesional, las semanas habilitadas y las franjas semanales en un solo lugar.</p>}
         <div className="form-grid internal-filter-grid">
           <label>
-            Profesional
+            Profesional <span className="required-star">*</span>
             <select value={selectedProviderId} onChange={(event) => setSelectedProviderId(event.target.value)} disabled={isDoctor}>
               <option value="">Selecciona una opción</option>
               {schedules.map((schedule) => (
@@ -407,7 +416,7 @@ export function AdminSchedulesPage() {
           </label>
           {!isDoctor && (
             <label>
-              Semanas habilitadas
+              Semanas habilitadas <span className="required-star">*</span>
               <input type="number" min={1} max={24} className={settingsErrors.weeksAheadBooking ? 'input-error' : ''} value={settings.weeksAheadBooking} onChange={(event) => { setSettings((current) => ({ ...current, weeksAheadBooking: Number(event.target.value) })); setSettingsErrors({}); }} />
             </label>
           )}
@@ -443,21 +452,21 @@ export function AdminSchedulesPage() {
               {providerForm.weeklyAvailabilities.map((availability, index) => (
                 <div key={`${index}-${availability.startTime}-${availability.endTime}`} className={`availability-row ${providerErrors.weeklyAvailabilities ? 'input-error' : ''}`}>
                   <label>
-                    Día
+                    Día <span className="required-star">*</span>
                     <select value={availability.dayOfWeek} onChange={(event) => updateAvailability(index, 'dayOfWeek', Number(event.target.value))}>
                       {dayOptions.map((day) => (<option key={day.value} value={day.value}>{day.label}</option>))}
                     </select>
                   </label>
                   <label>
-                    Inicio
+                    Inicio <span className="required-star">*</span>
                     <input type="time" value={availability.startTime} onChange={(event) => updateAvailability(index, 'startTime', event.target.value)} />
                   </label>
                   <label>
-                    Fin
+                    Fin <span className="required-star">*</span>
                     <input type="time" value={availability.endTime} onChange={(event) => updateAvailability(index, 'endTime', event.target.value)} />
                   </label>
                   <label>
-                    Intervalo
+                    Intervalo <span className="required-star">*</span>
                     <input type="number" min={10} max={120} value={availability.slotIntervalMinutes} onChange={(event) => updateAvailability(index, 'slotIntervalMinutes', Number(event.target.value))} />
                   </label>
                   <label className="checkbox-field">

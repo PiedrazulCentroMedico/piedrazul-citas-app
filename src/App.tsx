@@ -5,6 +5,7 @@ import { AccessibilityTools } from './components/AccessibilityTools';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { AdminSchedulesPage } from './pages/AdminSchedulesPage';
 import { AdminUsersPage } from './pages/AdminUsersPage';
+import { FaqPage } from './pages/FaqPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { HomePage } from './pages/HomePage';
 import { InternalAppointmentsPage } from './pages/InternalAppointmentsPage';
@@ -27,6 +28,7 @@ function App() {
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/reservar" element={<PublicBookingPage />} />
+            <Route path="/preguntas-frecuentes" element={<FaqPage />} />
             <Route path="/iniciar-sesion" element={<PatientLoginPage />} />
             <Route path="/crear-cuenta" element={<PatientRegisterPage />} />
             <Route path="/olvide-mi-contrasena" element={<ForgotPasswordPage />} />

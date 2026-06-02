@@ -63,7 +63,8 @@ public static class PatientInputValidator
         string firstName,
         string lastName,
         string phone,
-        string? email)
+        string? email,
+        DateOnly? birthDate = null)
     {
         var errors = new List<string>();
         var normalizedDocument = Normalize(documentNumber);
@@ -85,6 +86,24 @@ public static class PatientInputValidator
         if (!string.IsNullOrWhiteSpace(normalizedEmail) && (normalizedEmail.Length > 150 || !normalizedEmail.Contains('@')))
         {
             errors.Add("El correo electrónico no tiene un formato válido o supera los 150 caracteres.");
+        }
+
+        if (birthDate is null)
+        {
+            errors.Add("La fecha de nacimiento es obligatoria.");
+        }
+        else
+        {
+            var today = DateOnly.FromDateTime(DateTime.Today);
+            var age = today.Year - birthDate.Value.Year;
+            if (birthDate.Value > today.AddYears(-age)) age--;
+
+            if (birthDate.Value > today)
+                errors.Add("La fecha de nacimiento no puede ser una fecha futura.");
+            else if (age < 18)
+                errors.Add("El paciente debe ser mayor de edad para continuar.");
+            else if (age > 100)
+                errors.Add("La edad registrada no puede superar los 100 años.");
         }
 
         return errors;
