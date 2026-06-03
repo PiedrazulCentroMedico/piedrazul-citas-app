@@ -133,3 +133,5 @@ app.MapControllers().RequireRateLimiting("global");
 await DatabaseInitializer.MigrateAndSeedAsync(app.Services);
 
 app.Run();
+
+public partial class Program { }

@@ -20,8 +20,19 @@ public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
-        services.AddDbContext<AppDbContext>(options =>
-            options.UseNpgsql(configuration.GetConnectionString("Postgres")));
+        // When ConnectionStrings:Sqlite is set (e.g., in integration tests) use SQLite instead of
+        // PostgreSQL so that tests run without an external database server.
+        var sqliteConnectionString = configuration.GetConnectionString("Sqlite");
+        if (!string.IsNullOrWhiteSpace(sqliteConnectionString))
+        {
+            services.AddDbContext<AppDbContext>(options =>
+                options.UseSqlite(sqliteConnectionString));
+        }
+        else
+        {
+            services.AddDbContext<AppDbContext>(options =>
+                options.UseNpgsql(configuration.GetConnectionString("Postgres")));
+        }
 
         services.AddScoped<IAppointmentRepository, AppointmentRepository>();
         services.AddScoped<IPatientRepository, PatientRepository>();

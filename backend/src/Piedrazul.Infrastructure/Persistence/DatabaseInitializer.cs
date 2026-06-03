@@ -14,7 +14,13 @@ public static class DatabaseInitializer
     {
         using var scope = services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await dbContext.Database.MigrateAsync(cancellationToken);
+        // SQLite is used only in integration tests.  MigrateAsync would fail because the
+        // migration snapshot was generated with the PostgreSQL provider; EnsureCreated creates
+        // the schema directly from the current model without running provider-specific scripts.
+        if (dbContext.Database.IsSqlite())
+            await dbContext.Database.EnsureCreatedAsync(cancellationToken);
+        else
+            await dbContext.Database.MigrateAsync(cancellationToken);
         await DataSeeder.SeedAsync(dbContext, cancellationToken);
     }
 }
