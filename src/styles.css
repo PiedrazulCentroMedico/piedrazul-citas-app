@@ -5037,3 +5037,1118 @@ html[data-theme='dark'] .hero-logo-card img {
     animation: none !important;
   }
 }
+
+/* ==============================
+   Ajustes v16: header responsive y modo oscuro paciente
+   ============================== */
+
+/* Indicadores "Estás aquí" más limpios y legibles */
+.main-nav a.active::after,
+.header-actions .button.active::after {
+  background: #ffffff !important;
+  color: #0b4ea2 !important;
+  border: 1px solid rgba(147, 197, 253, 0.9) !important;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18) !important;
+}
+
+html[data-theme='dark'] .main-nav a.active::after,
+html[data-theme='dark'] .header-actions .button.active::after,
+html[data-theme='dark'] .active-tab-badge {
+  background: #f8fafc !important;
+  color: #0b4ea2 !important;
+  border: 1px solid rgba(191, 219, 254, 0.95) !important;
+  text-shadow: none !important;
+  box-shadow: 0 10px 24px rgba(147, 197, 253, 0.22), 0 0 0 3px rgba(96, 165, 250, 0.12) !important;
+}
+
+html[data-theme='dark'] .active-tab-badge::before {
+  border-bottom-color: #f8fafc !important;
+}
+
+/* Modo oscuro: próxima cita sin cajas blancas ni texto perdido */
+html[data-theme='dark'] .next-appointment-card {
+  background:
+    radial-gradient(circle at 92% 12%, rgba(34, 197, 94, 0.16), transparent 30%),
+    linear-gradient(135deg, #111827 0%, #0f172a 58%, #12213a 100%) !important;
+  border-color: rgba(96, 165, 250, 0.36) !important;
+  color: #e5e7eb !important;
+}
+
+html[data-theme='dark'] .next-appointment-card::after {
+  background: radial-gradient(circle, rgba(34, 197, 94, 0.26), transparent 68%) !important;
+}
+
+html[data-theme='dark'] .next-date-badge {
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.98), rgba(15, 23, 42, 0.98)) !important;
+  border-color: rgba(147, 197, 253, 0.42) !important;
+  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.34), inset 0 0 0 1px rgba(255, 255, 255, 0.03) !important;
+}
+
+html[data-theme='dark'] .next-date-badge strong {
+  color: #93c5fd !important;
+}
+
+html[data-theme='dark'] .next-date-badge span {
+  color: #dbeafe !important;
+}
+
+html[data-theme='dark'] .next-appointment-content small,
+html[data-theme='dark'] .next-appointment-content span {
+  color: #dbeafe !important;
+}
+
+/* Header escritorio: evita que el switch se monte sobre las opciones */
+.topbar-inner {
+  grid-template-columns: auto minmax(420px, 1fr) auto !important;
+}
+
+.header-actions .theme-switch {
+  flex: 0 0 auto;
+}
+
+/* Header tablet y móvil: compacto, sin barras raras y con el botón de tema bien ubicado */
+@media (max-width: 900px) {
+  .topbar {
+    position: static !important;
+  }
+
+  .topbar-inner {
+    width: min(100% - 1rem, 1220px) !important;
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 0.6rem !important;
+    padding: 0.65rem 0 !important;
+    overflow: visible !important;
+  }
+
+  .brand {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  .main-nav {
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.5rem !important;
+  }
+
+  .main-nav a {
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 46px !important;
+    justify-content: center !important;
+    text-align: center !important;
+    white-space: normal !important;
+    padding: 0.58rem 0.45rem !important;
+    border-radius: 14px !important;
+  }
+
+  .main-nav a[href='/preguntas-frecuentes'],
+  .main-nav a[href='/portal/interno/preguntas-frecuentes'] {
+    grid-column: 1 / -1 !important;
+  }
+
+  .header-actions {
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: 76px minmax(0, 1fr) !important;
+    gap: 0.55rem !important;
+    align-items: center !important;
+  }
+
+  .header-actions .theme-switch {
+    order: 0 !important;
+    justify-self: start !important;
+    align-self: center !important;
+  }
+
+  .header-actions .welcome-chip {
+    width: 100% !important;
+    min-width: 0 !important;
+    grid-column: 2 !important;
+    padding: 0.65rem 0.85rem !important;
+    border-radius: 16px !important;
+  }
+
+  .header-actions > .button:not(.header-button) {
+    grid-column: 1 / -1 !important;
+    width: 100% !important;
+    min-height: 48px !important;
+    justify-content: center !important;
+  }
+
+  .header-actions .header-button {
+    width: 100% !important;
+    min-width: 0 !important;
+    justify-content: center !important;
+  }
+
+  .main-nav a.active::after,
+  .header-actions .button.active::after {
+    display: inline-flex !important;
+    position: static !important;
+    transform: none !important;
+    margin-left: 0.35rem !important;
+    padding: 0.16rem 0.42rem !important;
+    font-size: 0.58rem !important;
+    box-shadow: none !important;
+  }
+
+  .portal-tabs {
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 0.65rem !important;
+  }
+
+  .portal-tab {
+    width: 100% !important;
+    min-height: 52px !important;
+    border-radius: 20px !important;
+  }
+
+  .portal-tab .active-tab-badge {
+    position: static !important;
+    transform: none !important;
+    margin-left: 0.45rem !important;
+    padding: 0.15rem 0.48rem !important;
+    font-size: 0.64rem !important;
+    box-shadow: none !important;
+  }
+
+  .portal-tab .active-tab-badge::before {
+    display: none !important;
+  }
+
+  .next-appointment-content {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 0.9rem !important;
+  }
+
+  .next-date-badge {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+}
+
+@media (max-width: 520px) {
+  .topbar-inner {
+    width: min(100% - 0.75rem, 1220px) !important;
+  }
+
+  .main-nav a,
+  .header-actions .button {
+    min-height: 44px !important;
+    font-size: 0.82rem !important;
+  }
+
+  .header-actions {
+    grid-template-columns: 68px minmax(0, 1fr) !important;
+  }
+
+  .theme-switch {
+    width: 58px !important;
+    min-width: 58px !important;
+    height: 32px !important;
+  }
+
+  .theme-switch-slider::before {
+    width: 28px !important;
+    height: 28px !important;
+  }
+
+  .theme-switch-input:checked + .theme-switch-slider::before {
+    transform: translateX(26px) !important;
+  }
+
+  .theme-switch .sun svg {
+    left: 32px !important;
+    width: 21px !important;
+    height: 21px !important;
+  }
+
+  .theme-switch .moon svg {
+    width: 21px !important;
+    height: 21px !important;
+  }
+
+  .welcome-chip strong {
+    font-size: 0.96rem !important;
+    line-height: 1.2 !important;
+  }
+
+  .welcome-chip span {
+    font-size: 0.9rem !important;
+  }
+
+  .section-card,
+  .next-appointment-card {
+    border-radius: 20px !important;
+  }
+}
+
+/* ==============================
+   Ajustes v17: header paciente compacto, modo oscuro legible y responsive real
+   ============================== */
+
+/* Header usa mejor todo el ancho disponible sin montar botones */
+.topbar {
+  overflow: visible !important;
+}
+
+.topbar-inner,
+.topbar-inner.page-container {
+  width: min(1520px, calc(100% - 1.25rem)) !important;
+  max-width: 1520px !important;
+  display: grid !important;
+  grid-template-columns: auto minmax(0, 1fr) auto !important;
+  align-items: center !important;
+  gap: 0.65rem !important;
+  padding: 0.55rem 0 !important;
+}
+
+.brand {
+  min-width: 190px !important;
+  gap: 0.65rem !important;
+}
+
+.brand-mark {
+  width: 42px !important;
+  height: 42px !important;
+  border-radius: 14px !important;
+}
+
+.brand strong {
+  font-size: 1rem !important;
+  line-height: 1.1 !important;
+}
+
+.brand small {
+  font-size: 0.82rem !important;
+}
+
+.main-nav {
+  min-width: 0 !important;
+  width: 100% !important;
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  flex-wrap: nowrap !important;
+  gap: 0.42rem !important;
+  overflow: visible !important;
+  padding: 0.12rem 0 !important;
+}
+
+.main-nav a,
+.header-actions .button {
+  min-height: 42px !important;
+  padding: 0.52rem 0.76rem !important;
+  border-radius: 13px !important;
+  font-size: 0.9rem !important;
+  line-height: 1.05 !important;
+  white-space: nowrap !important;
+  flex: 0 1 auto !important;
+}
+
+.nav-svg {
+  width: 1.12rem !important;
+  height: 1.12rem !important;
+}
+
+.header-actions {
+  min-width: 0 !important;
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 0.5rem !important;
+}
+
+.header-actions .theme-switch,
+.theme-switch {
+  width: 54px !important;
+  min-width: 54px !important;
+  height: 28px !important;
+  flex: 0 0 54px !important;
+}
+
+.theme-switch-slider {
+  border-radius: 999px !important;
+}
+
+.theme-switch-slider::before {
+  width: 24px !important;
+  height: 24px !important;
+  left: 2px !important;
+  bottom: 2px !important;
+}
+
+.theme-switch-input:checked + .theme-switch-slider::before {
+  transform: translateX(26px) !important;
+}
+
+.theme-switch .sun svg,
+.sun svg {
+  width: 19px !important;
+  height: 19px !important;
+  top: 4.5px !important;
+  left: 31px !important;
+}
+
+.theme-switch .moon svg,
+.moon svg {
+  width: 18px !important;
+  height: 18px !important;
+  top: 5px !important;
+  left: 5px !important;
+}
+
+.welcome-chip {
+  min-width: 0 !important;
+  max-width: 240px !important;
+  padding: 0.55rem 0.78rem !important;
+  border-radius: 14px !important;
+  line-height: 1.18 !important;
+}
+
+.welcome-chip strong,
+.welcome-chip span {
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.header-actions > .button:not(.header-button) {
+  min-width: 126px !important;
+}
+
+/* El globo de ubicación no tapa los botones ni el switch */
+.main-nav a.active::after,
+.header-actions .button.active::after {
+  bottom: -1.15rem !important;
+  font-size: 0.58rem !important;
+  padding: 0.12rem 0.42rem !important;
+  background: #ffffff !important;
+  color: #0b4ea2 !important;
+  border: 1px solid #bfdbfe !important;
+  text-shadow: none !important;
+  box-shadow: 0 8px 16px rgba(15, 23, 42, 0.16) !important;
+}
+
+html[data-theme='dark'] .main-nav a.active::after,
+html[data-theme='dark'] .header-actions .button.active::after,
+html[data-theme='dark'] .active-tab-badge {
+  background: #f8fafc !important;
+  color: #0b4ea2 !important;
+  border-color: #bfdbfe !important;
+  text-shadow: none !important;
+  box-shadow: 0 8px 16px rgba(96, 165, 250, 0.22) !important;
+}
+
+/* Modo oscuro: textos y tarjetas de reserva más legibles */
+html[data-theme='dark'] .section-card,
+html[data-theme='dark'] .appointment-flow-card,
+html[data-theme='dark'] .reservation-summary-card,
+html[data-theme='dark'] .modal-card,
+html[data-theme='dark'] .compact-modal {
+  background: linear-gradient(180deg, #111827 0%, #0f172a 100%) !important;
+  border-color: rgba(148, 163, 184, 0.32) !important;
+  color: #f8fafc !important;
+}
+
+html[data-theme='dark'] h1,
+html[data-theme='dark'] h2,
+html[data-theme='dark'] h3,
+html[data-theme='dark'] strong,
+html[data-theme='dark'] label,
+html[data-theme='dark'] .section-card h2,
+html[data-theme='dark'] .selection-step-label,
+html[data-theme='dark'] .choice-card strong,
+html[data-theme='dark'] .provider-choice-card strong {
+  color: #f8fafc !important;
+}
+
+html[data-theme='dark'] .muted-text,
+html[data-theme='dark'] .field-helper,
+html[data-theme='dark'] .helper-text,
+html[data-theme='dark'] small,
+html[data-theme='dark'] .choice-card span,
+html[data-theme='dark'] .provider-choice-card span,
+html[data-theme='dark'] .patient-confirm-row span,
+html[data-theme='dark'] .summary-grid span {
+  color: #cbd5e1 !important;
+}
+
+html[data-theme='dark'] .patient-confirm-row {
+  background: transparent !important;
+  border-color: transparent !important;
+}
+
+html[data-theme='dark'] .patient-confirm-row > div,
+html[data-theme='dark'] .summary-grid > div,
+html[data-theme='dark'] .readonly-field,
+html[data-theme='dark'] .data-pill,
+html[data-theme='dark'] .appointment-summary-card {
+  background: #172033 !important;
+  border-color: rgba(148, 163, 184, 0.35) !important;
+  color: #f8fafc !important;
+}
+
+html[data-theme='dark'] .patient-confirm-row strong,
+html[data-theme='dark'] .summary-grid strong,
+html[data-theme='dark'] .readonly-field strong,
+html[data-theme='dark'] .data-pill strong {
+  color: #ffffff !important;
+}
+
+html[data-theme='dark'] input,
+html[data-theme='dark'] select,
+html[data-theme='dark'] textarea {
+  background: #101827 !important;
+  border-color: rgba(148, 163, 184, 0.46) !important;
+  color: #f8fafc !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03), 0 0 0 1px rgba(15, 23, 42, 0.35) !important;
+}
+
+html[data-theme='dark'] input::placeholder,
+html[data-theme='dark'] textarea::placeholder {
+  color: #94a3b8 !important;
+}
+
+html[data-theme='dark'] input:disabled,
+html[data-theme='dark'] select:disabled,
+html[data-theme='dark'] textarea:disabled {
+  background: #1e293b !important;
+  border-color: rgba(148, 163, 184, 0.36) !important;
+  color: #dbeafe !important;
+  opacity: 1 !important;
+}
+
+html[data-theme='dark'] .selection-step-label {
+  background: #e0f2fe !important;
+  color: #075985 !important;
+  border: 1px solid rgba(125, 211, 252, 0.9) !important;
+  box-shadow: 0 8px 18px rgba(14, 165, 233, 0.12) !important;
+}
+
+html[data-theme='dark'] .choice-card,
+html[data-theme='dark'] .provider-choice-card,
+html[data-theme='dark'] .specialty-choice-grid button,
+html[data-theme='dark'] .provider-choice-grid button {
+  background: #111c30 !important;
+  border-color: rgba(148, 163, 184, 0.34) !important;
+  color: #f8fafc !important;
+}
+
+html[data-theme='dark'] .choice-card.selected,
+html[data-theme='dark'] .provider-choice-card.selected,
+html[data-theme='dark'] .specialty-choice-grid button.selected,
+html[data-theme='dark'] .provider-choice-grid button.selected {
+  background: rgba(16, 185, 129, 0.16) !important;
+  border-color: #34d399 !important;
+  color: #ecfdf5 !important;
+  box-shadow: 0 0 0 4px rgba(52, 211, 153, 0.12) !important;
+}
+
+html[data-theme='dark'] .choice-check {
+  border-color: rgba(52, 211, 153, 0.72) !important;
+  color: #86efac !important;
+  background: rgba(16, 185, 129, 0.1) !important;
+}
+
+html[data-theme='dark'] .selection-help,
+html[data-theme='dark'] .patient-confirm-row + .feedback-card.warning,
+html[data-theme='dark'] .feedback-card.warning {
+  background: rgba(251, 191, 36, 0.12) !important;
+  border-color: rgba(251, 191, 36, 0.65) !important;
+  color: #fde68a !important;
+}
+
+html[data-theme='dark'] .selection-help strong,
+html[data-theme='dark'] .feedback-card.warning strong,
+html[data-theme='dark'] .feedback-card.warning a {
+  color: #ffffff !important;
+}
+
+/* Responsive compacto del header */
+@media (max-width: 1180px) {
+  .topbar-inner {
+    grid-template-columns: auto minmax(0, 1fr) auto !important;
+    width: min(100% - 0.8rem, 1520px) !important;
+    gap: 0.45rem !important;
+  }
+
+  .brand {
+    min-width: 150px !important;
+  }
+
+  .brand-mark {
+    width: 34px !important;
+    height: 34px !important;
+  }
+
+  .brand small {
+    font-size: 0.75rem !important;
+  }
+
+  .main-nav a,
+  .header-actions .button {
+    padding: 0.48rem 0.58rem !important;
+    font-size: 0.82rem !important;
+    min-height: 40px !important;
+  }
+
+  .welcome-chip {
+    max-width: 190px !important;
+    font-size: 0.84rem !important;
+  }
+}
+
+@media (max-width: 820px) {
+  .topbar {
+    position: static !important;
+  }
+
+  .topbar-inner {
+    width: min(100% - 0.75rem, 720px) !important;
+    grid-template-columns: 1fr !important;
+    gap: 0.55rem !important;
+    padding: 0.55rem 0 0.7rem !important;
+  }
+
+  .brand {
+    width: 100% !important;
+    min-width: 0 !important;
+    justify-content: center !important;
+  }
+
+  .brand-mark {
+    width: 40px !important;
+    height: 40px !important;
+  }
+
+  .main-nav {
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.42rem !important;
+  }
+
+  .main-nav a {
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 42px !important;
+    justify-content: center !important;
+    text-align: center !important;
+    padding: 0.52rem 0.45rem !important;
+    white-space: normal !important;
+    overflow: visible !important;
+  }
+
+  .main-nav a[href='/preguntas-frecuentes'],
+  .main-nav a[href='/portal/interno/preguntas-frecuentes'] {
+    grid-column: 1 / -1 !important;
+  }
+
+  .header-actions {
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: 62px minmax(0, 1fr) !important;
+    gap: 0.45rem !important;
+    align-items: center !important;
+  }
+
+  .header-actions .theme-switch {
+    justify-self: start !important;
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+  }
+
+  .header-actions .welcome-chip {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+    width: 100% !important;
+    max-width: none !important;
+    padding: 0.56rem 0.75rem !important;
+  }
+
+  .header-actions > .button:not(.header-button) {
+    grid-column: 1 / -1 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 44px !important;
+    justify-content: center !important;
+  }
+
+  .header-actions .header-button {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .main-nav a.active::after,
+  .header-actions .button.active::after {
+    position: static !important;
+    transform: none !important;
+    margin-left: 0.35rem !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    padding: 0.12rem 0.34rem !important;
+    font-size: 0.56rem !important;
+    box-shadow: none !important;
+  }
+
+  .page-container {
+    width: min(100% - 0.9rem, 720px) !important;
+    padding-top: 1rem !important;
+  }
+
+  .section-card,
+  .hero-card,
+  .faq-hero,
+  .appointment-flow-card,
+  .reservation-summary-card {
+    padding: 1.05rem !important;
+    border-radius: 20px !important;
+  }
+}
+
+@media (max-width: 520px) {
+  .topbar-inner {
+    width: calc(100% - 0.55rem) !important;
+  }
+
+  .main-nav {
+    gap: 0.36rem !important;
+  }
+
+  .main-nav a {
+    min-height: 40px !important;
+    font-size: 0.8rem !important;
+    padding: 0.48rem 0.34rem !important;
+    border-radius: 12px !important;
+  }
+
+  .nav-svg {
+    width: 0.95rem !important;
+    height: 0.95rem !important;
+  }
+
+  .header-actions {
+    grid-template-columns: 58px minmax(0, 1fr) !important;
+  }
+
+  .theme-switch {
+    width: 52px !important;
+    min-width: 52px !important;
+    height: 28px !important;
+  }
+
+  .theme-switch-input:checked + .theme-switch-slider::before {
+    transform: translateX(24px) !important;
+  }
+
+  .welcome-chip strong,
+  .welcome-chip span {
+    white-space: normal !important;
+  }
+
+  .patient-confirm-row,
+  .summary-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .specialty-choice-grid,
+  .provider-choice-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* ==========================================================
+   Accesibilidad avanzada v19: contraste, daltonismo y reloj global
+   ========================================================== */
+.accessibility-panel button.accessibility-option-active {
+  background: #0f5bd8 !important;
+  color: #ffffff !important;
+  border-color: #073b9a !important;
+  box-shadow: 0 0 0 3px rgba(15, 91, 216, 0.18), 0 10px 22px rgba(15, 91, 216, 0.22) !important;
+}
+
+.accessibility-panel button.accessibility-option-active span {
+  background: #ffffff !important;
+  color: #0f3f91 !important;
+  border: 1px solid rgba(15, 91, 216, 0.22) !important;
+}
+
+html[data-theme='dark'] .accessibility-panel button.accessibility-option-active {
+  background: #f8fafc !important;
+  color: #0b1220 !important;
+  border-color: #93c5fd !important;
+  box-shadow: 0 0 0 3px rgba(147, 197, 253, 0.2), 0 14px 26px rgba(0, 0, 0, 0.36) !important;
+}
+
+html[data-theme='dark'] .accessibility-panel button.accessibility-option-active span {
+  background: #f8fafc !important;
+  color: #0b1220 !important;
+}
+
+/* Modo daltónico mejorado: paleta Okabe-Ito, bordes gruesos y patrones. */
+body.accessibility-color-blind {
+  --primary: #005eb8;
+  --primary-strong: #003f7d;
+  --success: #0072b2;
+  --success-soft: #e4f6ff;
+  --error: #d55e00;
+  --error-soft: #fff1e8;
+  --warning: #cc7900;
+  --warning-soft: #fff4d8;
+  --accent: #cc79a7;
+  --border: #172033;
+  --text-muted: #243142;
+  filter: none !important;
+}
+
+html[data-theme='dark'] body.accessibility-color-blind {
+  --surface: #08111f;
+  --surface-soft: #101b2d;
+  --border: #8fb6ff;
+  --primary: #56b4e9;
+  --primary-strong: #b7ddff;
+  --success: #9cdcfe;
+  --success-soft: rgba(86, 180, 233, 0.2);
+  --error: #ffb077;
+  --error-soft: rgba(213, 94, 0, 0.22);
+  --warning: #f0e442;
+  --warning-soft: rgba(240, 228, 66, 0.18);
+  --accent: #f0a6ca;
+  --text-muted: #dbeafe;
+  background: linear-gradient(180deg, #050b14 0%, #08111f 100%) !important;
+  color: #ffffff !important;
+}
+
+body.accessibility-color-blind .button,
+body.accessibility-color-blind .main-nav a.active,
+body.accessibility-color-blind .portal-tabs a.active,
+body.accessibility-color-blind .portal-tabs button.active {
+  background: linear-gradient(135deg, #005eb8 0%, #0072b2 100%) !important;
+  color: #ffffff !important;
+  border: 3px solid #001f3f !important;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+
+body.accessibility-color-blind .button-secondary,
+body.accessibility-color-blind .button-ghost,
+body.accessibility-color-blind .main-nav a:not(.active),
+body.accessibility-color-blind .portal-tabs a:not(.active),
+body.accessibility-color-blind .portal-tabs button:not(.active) {
+  background: #ffffff !important;
+  color: #003f7d !important;
+  border: 3px solid #005eb8 !important;
+}
+
+html[data-theme='dark'] body.accessibility-color-blind .button-secondary,
+html[data-theme='dark'] body.accessibility-color-blind .button-ghost,
+html[data-theme='dark'] body.accessibility-color-blind .main-nav a:not(.active),
+html[data-theme='dark'] body.accessibility-color-blind .portal-tabs a:not(.active),
+html[data-theme='dark'] body.accessibility-color-blind .portal-tabs button:not(.active) {
+  background: #0b1628 !important;
+  color: #dff3ff !important;
+  border-color: #56b4e9 !important;
+}
+
+body.accessibility-color-blind input,
+body.accessibility-color-blind select,
+body.accessibility-color-blind textarea,
+body.accessibility-color-blind .section-card,
+body.accessibility-color-blind .modal-card,
+body.accessibility-color-blind .table-wrapper,
+body.accessibility-color-blind .faq-grid details,
+body.accessibility-color-blind .faq-grid-wide details,
+body.accessibility-color-blind .summary-grid > div,
+body.accessibility-color-blind .value-card,
+body.accessibility-color-blind .lookup-card,
+body.accessibility-color-blind .readonly-professional-card,
+body.accessibility-color-blind .patient-clock-widget,
+body.accessibility-color-blind .clock-date-card {
+  border-width: 2px !important;
+  border-color: var(--border) !important;
+  box-shadow: 0 0 0 1px rgba(0, 95, 184, 0.12), 0 12px 28px rgba(0, 0, 0, 0.08) !important;
+}
+
+html[data-theme='dark'] body.accessibility-color-blind input,
+html[data-theme='dark'] body.accessibility-color-blind select,
+html[data-theme='dark'] body.accessibility-color-blind textarea,
+html[data-theme='dark'] body.accessibility-color-blind .section-card,
+html[data-theme='dark'] body.accessibility-color-blind .modal-card,
+html[data-theme='dark'] body.accessibility-color-blind .table-wrapper,
+html[data-theme='dark'] body.accessibility-color-blind .faq-grid details,
+html[data-theme='dark'] body.accessibility-color-blind .faq-grid-wide details,
+html[data-theme='dark'] body.accessibility-color-blind .summary-grid > div,
+html[data-theme='dark'] body.accessibility-color-blind .value-card,
+html[data-theme='dark'] body.accessibility-color-blind .lookup-card,
+html[data-theme='dark'] body.accessibility-color-blind .readonly-professional-card,
+html[data-theme='dark'] body.accessibility-color-blind .patient-clock-widget,
+html[data-theme='dark'] body.accessibility-color-blind .clock-date-card {
+  background: #0b1628 !important;
+  color: #ffffff !important;
+  border-color: #8fb6ff !important;
+  box-shadow: 0 0 0 1px rgba(143, 182, 255, 0.24), 0 16px 34px rgba(0, 0, 0, 0.38) !important;
+}
+
+body.accessibility-color-blind .date-option.selected,
+body.accessibility-color-blind .slot-button.selected,
+body.accessibility-color-blind .choice-card.selected,
+body.accessibility-color-blind .provider-choice-card.selected,
+body.accessibility-color-blind .lookup-card.selected {
+  background: repeating-linear-gradient(135deg, #dff3ff 0 9px, #ffffff 9px 18px) !important;
+  color: #001b36 !important;
+  border: 4px solid #005eb8 !important;
+  outline: 3px solid #e69f00 !important;
+  outline-offset: 3px !important;
+}
+
+html[data-theme='dark'] body.accessibility-color-blind .date-option.selected,
+html[data-theme='dark'] body.accessibility-color-blind .slot-button.selected,
+html[data-theme='dark'] body.accessibility-color-blind .choice-card.selected,
+html[data-theme='dark'] body.accessibility-color-blind .provider-choice-card.selected,
+html[data-theme='dark'] body.accessibility-color-blind .lookup-card.selected {
+  background: repeating-linear-gradient(135deg, #0a3558 0 9px, #082033 9px 18px) !important;
+  color: #ffffff !important;
+  border-color: #56b4e9 !important;
+  outline-color: #f0e442 !important;
+}
+
+body.accessibility-color-blind .status-programada,
+body.accessibility-color-blind .feedback-card.success,
+body.accessibility-color-blind .success-soft,
+body.accessibility-color-blind .appointment-row-completed,
+body.accessibility-color-blind .button-history-green {
+  background: repeating-linear-gradient(45deg, #e4f6ff 0 10px, #ffffff 10px 20px) !important;
+  border: 3px solid #0072b2 !important;
+  color: #00384d !important;
+}
+
+body.accessibility-color-blind .status-cancelada,
+body.accessibility-color-blind .feedback-card.error,
+body.accessibility-color-blind .appointment-row-cancelled,
+body.accessibility-color-blind .error,
+body.accessibility-color-blind .alert-error {
+  background: repeating-linear-gradient(45deg, #fff1e8 0 10px, #ffffff 10px 20px) !important;
+  border: 3px solid #d55e00 !important;
+  color: #4a2100 !important;
+}
+
+html[data-theme='dark'] body.accessibility-color-blind .status-programada,
+html[data-theme='dark'] body.accessibility-color-blind .feedback-card.success,
+html[data-theme='dark'] body.accessibility-color-blind .success-soft,
+html[data-theme='dark'] body.accessibility-color-blind .appointment-row-completed,
+html[data-theme='dark'] body.accessibility-color-blind .button-history-green {
+  background: repeating-linear-gradient(45deg, rgba(86, 180, 233, 0.22) 0 10px, rgba(86, 180, 233, 0.1) 10px 20px) !important;
+  border-color: #56b4e9 !important;
+  color: #e5f7ff !important;
+}
+
+html[data-theme='dark'] body.accessibility-color-blind .status-cancelada,
+html[data-theme='dark'] body.accessibility-color-blind .feedback-card.error,
+html[data-theme='dark'] body.accessibility-color-blind .appointment-row-cancelled,
+html[data-theme='dark'] body.accessibility-color-blind .error,
+html[data-theme='dark'] body.accessibility-color-blind .alert-error {
+  background: repeating-linear-gradient(45deg, rgba(213, 94, 0, 0.25) 0 10px, rgba(213, 94, 0, 0.11) 10px 20px) !important;
+  border-color: #ffb077 !important;
+  color: #ffe8d8 !important;
+}
+
+body.accessibility-color-blind .warning,
+body.accessibility-color-blind .guest-warning-block,
+body.accessibility-color-blind .guest-warning-panel,
+body.accessibility-color-blind .eyebrow-warning,
+body.accessibility-color-blind .field-warning {
+  background: repeating-linear-gradient(135deg, #fff4d8 0 10px, #fffaf0 10px 20px) !important;
+  border: 3px solid #cc7900 !important;
+  color: #4b3100 !important;
+}
+
+html[data-theme='dark'] body.accessibility-color-blind .warning,
+html[data-theme='dark'] body.accessibility-color-blind .guest-warning-block,
+html[data-theme='dark'] body.accessibility-color-blind .guest-warning-panel,
+html[data-theme='dark'] body.accessibility-color-blind .eyebrow-warning,
+html[data-theme='dark'] body.accessibility-color-blind .field-warning {
+  background: repeating-linear-gradient(135deg, rgba(240, 228, 66, 0.2) 0 10px, rgba(240, 228, 66, 0.1) 10px 20px) !important;
+  border-color: #f0e442 !important;
+  color: #fffbd1 !important;
+}
+
+body.accessibility-color-blind :focus-visible {
+  outline: 4px solid #e69f00 !important;
+  outline-offset: 4px !important;
+}
+
+html[data-theme='dark'] body.accessibility-color-blind :focus-visible {
+  outline-color: #f0e442 !important;
+}
+
+/* Alto contraste máximo, independiente del modo claro u oscuro. */
+body.accessibility-contrast {
+  --primary: #0057ff;
+  --primary-strong: #0032a0;
+  --surface: #ffffff;
+  --surface-soft: #ffffff;
+  --border: #000000;
+  --text: #000000;
+  --text-main: #000000;
+  --text-muted: #000000;
+  --success: #005a00;
+  --error: #b00000;
+  --warning: #8a5a00;
+  background: #ffffff !important;
+  color: #000000 !important;
+  filter: none !important;
+}
+
+html[data-theme='dark'] body.accessibility-contrast {
+  --primary: #ffff00;
+  --primary-strong: #ffff00;
+  --surface: #000000;
+  --surface-soft: #050505;
+  --border: #ffffff;
+  --text: #ffffff;
+  --text-main: #ffffff;
+  --text-muted: #ffffff;
+  --success: #00ff66;
+  --error: #ff6b6b;
+  --warning: #ffff00;
+  background: #000000 !important;
+  color: #ffffff !important;
+}
+
+body.accessibility-contrast .topbar,
+body.accessibility-contrast .app-shell,
+body.accessibility-contrast .page-container,
+body.accessibility-contrast .footer,
+body.accessibility-contrast .section-card,
+body.accessibility-contrast .hero-card,
+body.accessibility-contrast .modal-card,
+body.accessibility-contrast .auth-form,
+body.accessibility-contrast .auth-copy,
+body.accessibility-contrast .table-wrapper,
+body.accessibility-contrast .summary-grid > div,
+body.accessibility-contrast .faq-grid details,
+body.accessibility-contrast .faq-grid-wide details,
+body.accessibility-contrast .patient-clock-widget,
+body.accessibility-contrast .clock-date-card,
+body.accessibility-contrast .readonly-professional-card,
+body.accessibility-contrast .lookup-card,
+body.accessibility-contrast .value-card,
+body.accessibility-contrast input,
+body.accessibility-contrast select,
+body.accessibility-contrast textarea {
+  background: var(--surface) !important;
+  color: var(--text) !important;
+  border: 3px solid var(--border) !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
+
+body.accessibility-contrast h1,
+body.accessibility-contrast h2,
+body.accessibility-contrast h3,
+body.accessibility-contrast h4,
+body.accessibility-contrast p,
+body.accessibility-contrast span,
+body.accessibility-contrast small,
+body.accessibility-contrast strong,
+body.accessibility-contrast label,
+body.accessibility-contrast th,
+body.accessibility-contrast td,
+body.accessibility-contrast a,
+body.accessibility-contrast .muted-text,
+body.accessibility-contrast .field-helper,
+body.accessibility-contrast .helper-text {
+  color: var(--text) !important;
+}
+
+body.accessibility-contrast .button,
+body.accessibility-contrast .main-nav a.active,
+body.accessibility-contrast .portal-tabs a.active,
+body.accessibility-contrast .portal-tabs button.active {
+  background: var(--text) !important;
+  color: var(--surface) !important;
+  border: 4px solid var(--text) !important;
+  box-shadow: none !important;
+}
+
+body.accessibility-contrast .button-secondary,
+body.accessibility-contrast .button-ghost,
+body.accessibility-contrast .main-nav a:not(.active),
+body.accessibility-contrast .portal-tabs a:not(.active),
+body.accessibility-contrast .portal-tabs button:not(.active) {
+  background: var(--surface) !important;
+  color: var(--text) !important;
+  border: 4px solid var(--text) !important;
+  box-shadow: none !important;
+}
+
+html[data-theme='dark'] body.accessibility-contrast .button,
+html[data-theme='dark'] body.accessibility-contrast .main-nav a.active,
+html[data-theme='dark'] body.accessibility-contrast .portal-tabs a.active,
+html[data-theme='dark'] body.accessibility-contrast .portal-tabs button.active {
+  background: #ffff00 !important;
+  color: #000000 !important;
+  border-color: #ffff00 !important;
+}
+
+html[data-theme='dark'] body.accessibility-contrast .button-secondary,
+html[data-theme='dark'] body.accessibility-contrast .button-ghost,
+html[data-theme='dark'] body.accessibility-contrast .main-nav a:not(.active),
+html[data-theme='dark'] body.accessibility-contrast .portal-tabs a:not(.active),
+html[data-theme='dark'] body.accessibility-contrast .portal-tabs button:not(.active) {
+  background: #000000 !important;
+  color: #ffffff !important;
+  border-color: #ffffff !important;
+}
+
+body.accessibility-contrast .active-tab-badge {
+  background: var(--surface) !important;
+  color: var(--text) !important;
+  border: 3px solid var(--text) !important;
+}
+
+html[data-theme='dark'] body.accessibility-contrast .active-tab-badge {
+  background: #ffffff !important;
+  color: #0032a0 !important;
+  border-color: #ffff00 !important;
+}
+
+body.accessibility-contrast :focus-visible {
+  outline: 5px solid #ffbf00 !important;
+  outline-offset: 5px !important;
+}
+
+html[data-theme='dark'] body.accessibility-contrast :focus-visible {
+  outline-color: #00ffff !important;
+}
+
+body.accessibility-contrast .watch .frame,
+body.accessibility-color-blind .watch .frame {
+  border-width: 3px !important;
+}
+
+body.accessibility-contrast .watch .frame {
+  background: var(--text) !important;
+  color: var(--surface) !important;
+}
+
+html[data-theme='dark'] body.accessibility-contrast .watch .frame {
+  background: #ffff00 !important;
+  color: #000000 !important;
+}
+
+html[data-theme='dark'] body.accessibility-contrast .watch .text,
+html[data-theme='dark'] body.accessibility-contrast .clock-seconds {
+  color: #000000 !important;
+  text-shadow: none !important;
+}
+

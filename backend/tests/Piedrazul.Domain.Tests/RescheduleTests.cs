@@ -13,6 +13,7 @@ public sealed class RescheduleTests
     private sealed class StubAppointmentRepo : IAppointmentRepository
     {
         public Appointment? AppointmentToReturn { get; set; }
+        public Provider? ProviderToReturn { get; set; }
         public AppointmentHistory? CapturedHistory { get; private set; }
 
         public Task<Appointment?> GetAppointmentByIdAsync(Guid id, CancellationToken ct = default) =>
@@ -30,7 +31,7 @@ public sealed class RescheduleTests
             Task.FromResult<IReadOnlyList<Provider>>(Array.Empty<Provider>());
 
         public Task<Provider?> GetActiveProviderAsync(Guid id, CancellationToken ct = default) =>
-            Task.FromResult<Provider?>(null);
+            Task.FromResult(ProviderToReturn is not null && ProviderToReturn.Id == id ? ProviderToReturn : null);
 
         public Task<IReadOnlyList<WeeklyAvailability>> GetWeeklyAvailabilitiesAsync(Guid id, DayOfWeek dow, CancellationToken ct = default) =>
             Task.FromResult<IReadOnlyList<WeeklyAvailability>>(Array.Empty<WeeklyAvailability>());
@@ -104,14 +105,27 @@ public sealed class RescheduleTests
     private static AppointmentLifecycleService BuildService(StubAppointmentRepo repo) =>
         new(repo, new StubSettingsRepo(), new StubAvailabilityService(), new NoOpCache(), new NoOpAudit(), new NoOpNotifications());
 
-    private static Appointment BuildScheduledAppointment() => new()
+    private static Appointment BuildScheduledAppointment()
     {
-        ProviderId      = Guid.NewGuid(),
-        AppointmentDate = DateOnly.FromDateTime(DateTime.Today.AddDays(1)),
-        StartTime       = new TimeOnly(8, 0),
-        EndTime         = new TimeOnly(8, 30),
-        Status          = AppointmentStatus.Scheduled,
-    };
+        var provider = new Provider
+        {
+            Id = Guid.NewGuid(),
+            FirstName = "Laura",
+            LastName = "Rivera",
+            Specialty = "Medicina general",
+            IsActive = true
+        };
+
+        return new Appointment
+        {
+            ProviderId      = provider.Id,
+            Provider        = provider,
+            AppointmentDate = DateOnly.FromDateTime(DateTime.Today.AddDays(1)),
+            StartTime       = new TimeOnly(8, 0),
+            EndTime         = new TimeOnly(8, 30),
+            Status          = AppointmentStatus.Scheduled,
+        };
+    }
 
     // ── Tests ─────────────────────────────────────────────────────────────────
 
@@ -119,7 +133,7 @@ public sealed class RescheduleTests
     public async Task Reschedule_ShouldSucceed_AndCreateHistoryEntry_WhenAppointmentIsScheduledAndDataIsValid()
     {
         var appointment = BuildScheduledAppointment();
-        var repo        = new StubAppointmentRepo { AppointmentToReturn = appointment };
+        var repo        = new StubAppointmentRepo { AppointmentToReturn = appointment, ProviderToReturn = appointment.Provider };
         var service     = BuildService(repo);
 
         var previousDate  = appointment.AppointmentDate;
@@ -154,7 +168,7 @@ public sealed class RescheduleTests
         var appointment = BuildScheduledAppointment();
         appointment.Status = AppointmentStatus.Cancelled;
 
-        var repo    = new StubAppointmentRepo { AppointmentToReturn = appointment };
+        var repo    = new StubAppointmentRepo { AppointmentToReturn = appointment, ProviderToReturn = appointment.Provider };
         var service = BuildService(repo);
 
         var request = new RescheduleAppointmentRequest
@@ -174,7 +188,7 @@ public sealed class RescheduleTests
     public async Task Reschedule_ShouldReturnValidationError_WhenNewDateIsInThePast()
     {
         var appointment = BuildScheduledAppointment();
-        var repo        = new StubAppointmentRepo { AppointmentToReturn = appointment };
+        var repo        = new StubAppointmentRepo { AppointmentToReturn = appointment, ProviderToReturn = appointment.Provider };
         var service     = BuildService(repo);
 
         var request = new RescheduleAppointmentRequest
@@ -195,7 +209,7 @@ public sealed class RescheduleTests
     public async Task Reschedule_ShouldReturnValidationError_WhenReasonExceeds500Characters()
     {
         var appointment = BuildScheduledAppointment();
-        var repo        = new StubAppointmentRepo { AppointmentToReturn = appointment };
+        var repo        = new StubAppointmentRepo { AppointmentToReturn = appointment, ProviderToReturn = appointment.Provider };
         var service     = BuildService(repo);
 
         var request = new RescheduleAppointmentRequest

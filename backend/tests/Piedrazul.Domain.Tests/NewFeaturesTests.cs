@@ -21,7 +21,7 @@ public sealed class ExcelExporterTests
         var exporter = new AppointmentExcelExporter();
         var citas = new List<AppointmentResponse>
         {
-            new(Guid.NewGuid(), "Dr. Juan Pérez", "Medicina General",
+            new(Guid.NewGuid(), Guid.NewGuid(), "Dr. Juan Pérez", "Medicina General",
                 "Pedro Muñoz", "1234567890", "3001234567",
                 TestDate, "09:00", "09:30", "Scheduled", "InPerson", null),
         };
@@ -97,6 +97,9 @@ public sealed class ExcelExporterTests
 
         public Task<int> CountScheduledAppointmentsByPatientIdAsync(Guid id, CancellationToken ct = default) =>
             Task.FromResult(0);
+
+        public Task<Dictionary<Guid, int>> CountScheduledByPatientIdsAsync(IReadOnlyList<Guid> patientIds, CancellationToken ct = default) =>
+            Task.FromResult(patientIds.ToDictionary(id => id, _ => 0));
 
         public Task AddAppointmentAsync(Appointment a, CancellationToken ct = default) => Task.CompletedTask;
         public Task AddHistoryAsync(AppointmentHistory h, CancellationToken ct = default) => Task.CompletedTask;

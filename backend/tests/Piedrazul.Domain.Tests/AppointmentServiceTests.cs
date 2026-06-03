@@ -222,7 +222,8 @@ public sealed class AppointmentServiceTests
             DocumentNumber = "12345678",
             FirstName = "María",
             LastName = "Gomez",
-            Phone = "3001234567"
+            Phone = "3001234567",
+            BirthDate = DateOnly.FromDateTime(DateTime.Today.AddYears(-30))
         };
 
         var result = await service.CreatePublicAppointmentAsync(request, null, "test");
@@ -244,7 +245,8 @@ public sealed class AppointmentServiceTests
             DocumentNumber = "12345678",
             FirstName = "María",
             LastName = "Gomez",
-            Phone = "3001234567"
+            Phone = "3001234567",
+            BirthDate = DateOnly.FromDateTime(DateTime.Today.AddYears(-30))
         };
 
         var result = await service.CreatePublicAppointmentAsync(request, null, "test");
@@ -266,7 +268,8 @@ public sealed class AppointmentServiceTests
             DocumentNumber = "12345678",
             FirstName = "María",
             LastName = "Gomez",
-            Phone = "3001234567"
+            Phone = "3001234567",
+            BirthDate = DateOnly.FromDateTime(DateTime.Today.AddYears(-30))
         };
 
         var result = await service.CreatePublicAppointmentAsync(request, null, "test");
@@ -334,7 +337,8 @@ public sealed class AppointmentServiceTests
             DocumentNumber = "12345678",
             FirstName = "María",
             LastName = "Gomez",
-            Phone = "3001234567"
+            Phone = "3001234567",
+            BirthDate = DateOnly.FromDateTime(DateTime.Today.AddYears(-30))
         };
 
         var result = await service.CreatePublicAppointmentAsync(request, null, "test");

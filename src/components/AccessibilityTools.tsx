@@ -64,9 +64,9 @@ export function AccessibilityTools() {
       </button>
 
       <div id="accessibility-panel" className="accessibility-panel">
-        <button type="button" onClick={() => setHighContrast((current) => !current)} title="Activar o desactivar alto contraste">
+        <button type="button" className={highContrast ? 'accessibility-option-active' : undefined} aria-pressed={highContrast} onClick={() => setHighContrast((current) => !current)} title="Activar o desactivar alto contraste">
           ◐
-          <span>Contraste</span>
+          <span>{highContrast ? 'Contraste activo' : 'Contraste'}</span>
         </button>
         <button type="button" onClick={reduceFont} title="Reducir tamaño de letra" disabled={fontLevel <= MIN_FONT_LEVEL}>
           A-
@@ -76,13 +76,13 @@ export function AccessibilityTools() {
           A+
           <span>Aumentar letra ({MAX_FONT_LEVEL} niveles)</span>
         </button>
-        <button type="button" onClick={() => setBoldText((current) => !current)} title="Activar o desactivar negrita">
+        <button type="button" className={boldText ? 'accessibility-option-active' : undefined} aria-pressed={boldText} onClick={() => setBoldText((current) => !current)} title="Activar o desactivar negrita">
           B
-          <span>Negrita</span>
+          <span>{boldText ? 'Negrita activa' : 'Negrita'}</span>
         </button>
-        <button type="button" onClick={() => setColorBlindMode((current) => !current)} title="Activar o desactivar modo daltónico: invierte y diferencia colores">
+        <button type="button" className={colorBlindMode ? 'accessibility-option-active' : undefined} aria-pressed={colorBlindMode} onClick={() => setColorBlindMode((current) => !current)} title="Activar o desactivar modo daltónico con paleta segura y patrones visuales">
           C
-          <span>Modo daltónico</span>
+          <span>{colorBlindMode ? 'Daltónico activo' : 'Modo daltónico'}</span>
         </button>
       </div>
     </aside>

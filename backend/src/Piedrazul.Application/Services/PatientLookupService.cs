@@ -66,7 +66,7 @@ return new PatientPublicLookupResponse(
     HasUserAccount: !string.IsNullOrWhiteSpace(profile.ExternalUserId),
     MustRegister: mustRegister,
     LastGuestAppointmentDate: lastGuestAppointment?.AppointmentDate,
-    LastGuestAppointmentType: lastGuestAppointment?.Provider.Specialty);
+    LastGuestAppointmentType: lastGuestAppointment?.Provider?.Specialty);
     }
 
     private async Task<IReadOnlyList<PatientLookupResponse>> MapToLookupResponsesAsync(

@@ -92,7 +92,7 @@ export function PatientDashboardPage() {
   };
 
   return (
-    <div className="stack-lg">
+    <div className="stack-lg patient-dashboard-shell">
       <section className="section-card">
         <h1>Portal del paciente</h1>
         <p className="muted-text">Bienvenido, {session?.displayName}. Desde aquí puedes revisar tus citas, cancelar o reprogramar sin crear una cita nueva.</p>
