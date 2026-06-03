@@ -85,9 +85,11 @@ export function AppLayout({ children }: LayoutProps) {
             aria-expanded={isMobileMenuOpen}
             onClick={() => setIsMobileMenuOpen((open) => !open)}
           >
-            <span />
-            <span />
-            <span />
+            <span className="mobile-menu-icon" aria-hidden="true">
+              <span />
+              <span />
+              <span />
+            </span>
             <strong>{isMobileMenuOpen ? 'Cerrar' : 'Menú'}</strong>
           </button>
 
@@ -112,7 +114,7 @@ export function AppLayout({ children }: LayoutProps) {
             {isInternalRoute && doctorAccess && <NavLink to="/portal/interno/perfil">Mi perfil</NavLink>}
           </nav>
 
-          <div className={`header-actions ${isMobileMenuOpen ? 'is-open' : ''}`}>
+          <div className="theme-shell">
             <label className="theme-switch" title={isDarkMode ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'} aria-label={isDarkMode ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}>
               <span className="sun">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true">
@@ -135,7 +137,9 @@ export function AppLayout({ children }: LayoutProps) {
               />
               <span className="theme-switch-slider" />
             </label>
+          </div>
 
+          <div className={`header-actions ${isMobileMenuOpen ? 'is-open' : ''}`}>
             {session ? (
               <>
                 <span className="welcome-chip">
