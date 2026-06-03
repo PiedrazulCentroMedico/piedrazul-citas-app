@@ -328,9 +328,12 @@ export function PublicBookingPage() {
       setSuccess(null);
       const lookup = await apiRequest<PatientPublicLookup>(`/api/public/patients/lookup?document=${documentNumber}`, null);
       setDocumentVerified(true);
-      setPatientLookup(lookup.exists ? lookup : null);
+      setPatientLookup(null);
 
-      if (lookup.hasUserAccount) {
+      // En producción y en local los datos pueden venir de fuentes distintas.
+      // Para mantener el mismo flujo visual, cualquier cédula ya encontrada
+      // bloquea la reserva como invitado y muestra el modal de cuenta encontrada.
+      if (lookup.exists || lookup.hasUserAccount) {
         setDocumentVerified(false);
         setPatientLookup(null);
         setDocumentNotice(null);
@@ -366,9 +369,7 @@ export function PublicBookingPage() {
         return;
       }
 
-      setDocumentNotice(lookup.exists
-        ? `Encontramos información previa para ${lookup.firstName ?? ''} ${lookup.lastName ?? ''}. Completa los datos faltantes para continuar.`
-        : 'No encontramos esta cédula. Continúa llenando tus datos para reservar.');
+      setDocumentNotice('No encontramos esta cédula. Continúa llenando tus datos para reservar.');
       window.setTimeout(() => {
         setDocumentNotice(null);
         scrollToElement(patientDataRef);
@@ -595,11 +596,6 @@ export function PublicBookingPage() {
               </div>
             </div>
             {documentVerified && !patientLookup && <div className="feedback-card success">No encontramos esta cédula. Continúa llenando tus datos para reservar.</div>}
-            {patientLookup && (
-              <div className="feedback-card success">
-                Encontramos información previa para <strong>{patientLookup.firstName} {patientLookup.lastName}</strong>. Nombre y género fueron rellenados; ingresa los datos de contacto para continuar.
-              </div>
-            )}
           </section>
         )}
 
