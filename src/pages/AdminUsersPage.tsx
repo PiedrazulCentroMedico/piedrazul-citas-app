@@ -9,9 +9,23 @@ import { getOlderAdultBirthDateWarning, validatePatientForm, sanitizeNameInput }
 import { hashPassword } from '../utils/passwordHash';
 
 
+
+const ROLE_LABELS: Record<string, string> = {
+  Admin: 'Administrador',
+  Scheduler: 'Agendador',
+  Doctor: 'Médico',
+  Patient: 'Paciente',
+};
+
+function formatRoleLabel(roles: string[]) {
+  if (roles.length === 0) return 'Sin rol asignado';
+  return roles.map((role) => ROLE_LABELS[role] ?? role).join(', ');
+}
+
 export function AdminUsersPage() {
   const { session, authMode } = useAuth();
   const [term, setTerm] = useState('');
+  const [userFilter, setUserFilter] = useState<'all' | 'patients' | 'internal'>('all');
   const [internalUsers, setInternalUsers] = useState<InternalDirectoryAccount[]>([]);
   const [patients, setPatients] = useState<PatientLookup[]>([]);
   const [, setProviders] = useState<ProviderSchedule[]>([]);
@@ -101,6 +115,10 @@ export function AdminUsersPage() {
   const saveAccount = async () => {
     if (!editingAccount) return;
     const corporateEmail = normalizeCorporateEmail(accountForm.email);
+    if (!/^\d{5,20}$/.test(accountForm.documentNumber.trim())) {
+      setMessage('La cédula del usuario interno es obligatoria y debe tener solo números.');
+      return;
+    }
     if (!corporateEmail) {
       setMessage('El correo corporativo es obligatorio y debe terminar en @piedrazul.local.');
       return;
@@ -191,13 +209,24 @@ export function AdminUsersPage() {
       </section>
       <PortalTabs items={tabs} />
       <section className="section-card stack-md">
-        <label>
-          Buscar por nombre o cédula
-          <input value={term} onChange={(event) => setTerm(event.target.value)} placeholder="Ej. 1002778528 o Laura Rivera" />
-        </label>
+        <div className="form-grid internal-filter-grid">
+          <label>
+            Buscar por nombre o cédula
+            <input value={term} onChange={(event) => setTerm(event.target.value)} placeholder="Ej. 1002778528 o Laura Rivera" />
+          </label>
+          <label>
+            Ver usuarios
+            <select value={userFilter} onChange={(event) => setUserFilter(event.target.value as 'all' | 'patients' | 'internal')}>
+              <option value="all">Todos</option>
+              <option value="patients">Solo pacientes</option>
+              <option value="internal">Solo internos</option>
+            </select>
+          </label>
+        </div>
         {message && <div className={`feedback-card ${message.includes('correctamente') ? 'success' : 'error'}`}>{message}</div>}
       </section>
 
+      {userFilter !== 'patients' && (
       <section className="section-card stack-md">
         <h2>Usuarios internos</h2>
         <div className="table-wrapper">
@@ -209,7 +238,7 @@ export function AdminUsersPage() {
                   <td>{account.displayName}</td>
                   <td>{account.documentNumber ?? '—'}</td>
                   <td>{account.email ? normalizeCorporateEmail(account.email) : '—'}</td>
-                  <td>{account.roles.join(', ')}</td>
+                  <td>{formatRoleLabel(account.roles)}</td>
                   <td>
                     <div className="inline-actions wrap">
                       <button type="button" className="button button-secondary" onClick={() => beginAccountEdit(account)}>Editar</button>
@@ -222,7 +251,9 @@ export function AdminUsersPage() {
           </table>
         </div>
       </section>
+      )}
 
+      {userFilter !== 'internal' && (
       <section className="section-card stack-md">
         <h2>Pacientes registrados por documento</h2>
         <div className="table-wrapper">
@@ -244,6 +275,7 @@ export function AdminUsersPage() {
           </table>
         </div>
       </section>
+      )}
 
       {editingAccount && (
         <div className="modal-backdrop" role="dialog" aria-modal="true">

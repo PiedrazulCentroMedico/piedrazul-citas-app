@@ -75,9 +75,19 @@ allowedOrigins = allowedOrigins
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("frontend", policy =>
-        policy.WithOrigins(allowedOrigins.ToArray())
+    {
+        // En desarrollo local el frontend puede cambiar de puerto (5173, 5174, 5175, etc.).
+        // Por eso se permite cualquier origen localhost/127.0.0.1, incluso si el entorno
+        // no quedó marcado como Development al ejecutar el backend desde otro equipo.
+        policy.SetIsOriginAllowed(origin =>
+                Uri.TryCreate(origin, UriKind.Absolute, out var uri)
+                && (uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase)
+                    || uri.Host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase)
+                    || allowedOrigins.Contains(origin, StringComparer.OrdinalIgnoreCase)))
               .AllowAnyHeader()
-              .AllowAnyMethod());
+              .AllowAnyMethod()
+              .WithExposedHeaders("Content-Disposition");
+    });
 });
 
 var authenticationMode = builder.Configuration["Authentication:Mode"] ?? "Development";
@@ -116,6 +126,36 @@ builder.Services.AddAuthorization(options =>
 
 var app = builder.Build();
 
+// CORS debe ir lo más arriba posible. Así, incluso cuando un endpoint falla,
+// el navegador recibe Access-Control-Allow-Origin y se ve el error real del backend.
+app.Use(async (context, next) =>
+{
+    var origin = context.Request.Headers.Origin.ToString();
+    var isAllowedLocalOrigin = Uri.TryCreate(origin, UriKind.Absolute, out var uri)
+        && (uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase)
+            || uri.Host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase)
+            || allowedOrigins.Contains(origin, StringComparer.OrdinalIgnoreCase));
+
+    if (isAllowedLocalOrigin)
+    {
+        context.Response.Headers["Access-Control-Allow-Origin"] = origin;
+        context.Response.Headers["Vary"] = "Origin";
+        context.Response.Headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Debug-Subject, X-Debug-Name, X-Debug-Roles, X-Debug-Email, Accept, Origin";
+        context.Response.Headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS";
+        context.Response.Headers["Access-Control-Expose-Headers"] = "Content-Disposition";
+    }
+
+    if (HttpMethods.IsOptions(context.Request.Method))
+    {
+        context.Response.StatusCode = StatusCodes.Status204NoContent;
+        return;
+    }
+
+    await next();
+});
+
+app.UseCors("frontend");
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -124,11 +164,10 @@ if (app.Environment.IsDevelopment())
 
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseMiddleware<SecurityHeadersMiddleware>();
-app.UseCors("frontend");
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();
-app.MapControllers().RequireRateLimiting("global");
+app.MapControllers().RequireCors("frontend").RequireRateLimiting("global");
 
 await DatabaseInitializer.MigrateAndSeedAsync(app.Services);
 

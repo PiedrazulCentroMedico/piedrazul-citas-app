@@ -5,6 +5,7 @@ import { useAuth } from '../auth/AuthContext';
 import { PortalTabs } from '../components/PortalTabs';
 import type { AppointmentResponse, AvailabilitySlot, Gender, GenderOption, InternalAppointmentPayload, PatientLookup, ProviderSummary, SystemSettings } from '../types';
 import { formatDateLabel, getOlderAdultBirthDateWarning, hasSettingsAccess, sanitizeNameInput, validatePatientForm } from '../utils/validators';
+import { demoProviderSummaries, demoSystemSettings } from '../utils/demoProviders';
 
 const initialForm = {
   providerId: '',
@@ -109,15 +110,20 @@ export function InternalNewAppointmentPage() {
 
     apiRequest<SystemSettings>('/api/public/settings', session)
       .then(setSettings)
-      .catch(() => undefined);
+      .catch(() => setSettings(demoSystemSettings));
+
+    const hydrateProviders = (data: ProviderSummary[], showOfflineNotice = false) => {
+      setProviders(data);
+      const specialties = buildUniqueSpecialties(data);
+      if (specialties[0]) setSelectedSpecialtyKey((current) => current || specialties[0].key);
+      if (showOfflineNotice) {
+        setAppointmentMessage('No se pudo conectar con el backend. Puedes seguir revisando el flujo con datos demo mientras reinicias la API.');
+      }
+    };
 
     apiRequest<ProviderSummary[]>('/api/public/providers', session)
-      .then((data) => {
-        setProviders(data);
-        const specialties = buildUniqueSpecialties(data);
-        if (specialties[0]) setSelectedSpecialtyKey(specialties[0].key);
-      })
-      .catch((error: Error) => setAppointmentMessage(error.message));
+      .then((data) => hydrateProviders(data))
+      .catch(() => hydrateProviders(demoProviderSummaries, true));
   }, [session]);
 
   useEffect(() => {
@@ -128,7 +134,10 @@ export function InternalNewAppointmentPage() {
 
     apiRequest<AvailabilitySlot[]>(`/api/public/providers/${form.providerId}/availability?date=${form.appointmentDate}`, session)
       .then(setSlots)
-      .catch((error: Error) => setAppointmentMessage(error.message));
+      .catch(() => {
+        setSlots([]);
+        setAppointmentMessage('No fue posible consultar horarios en el backend. Verifica que la API esté encendida.');
+      });
   }, [form.providerId, form.appointmentDate, session]);
 
   const selectedProvider = useMemo(() => providers.find((provider) => provider.id === form.providerId) ?? null, [form.providerId, providers]);
@@ -388,48 +397,37 @@ export function InternalNewAppointmentPage() {
 
           <div className="appointment-flow-card stack-md">
             <div className="step-hint">
-              <strong>2. Completa fecha y canal</strong>
-              <span>Cuando selecciones la fecha aparecerán las horas disponibles.</span>
+              <strong>2. Selecciona la fecha</strong>
+              <span>Primero marca el día de atención. Después aparecerán las horas disponibles.</span>
             </div>
-            <div className="form-grid">
-              <div className="span-two internal-date-strip-field">
-                <span className="field-label">Fecha de la cita <span className="required-star">*</span></span>
-                <div className={`date-strip ${fieldErrors.appointmentDate ? 'input-error' : ''}`} aria-label="Seleccionar fecha de la cita">
-                  <button type="button" className="date-strip-arrow" onClick={() => setDateOffset((current) => Math.max(0, current - 7))} disabled={dateOffset === 0} aria-label="Ver fechas anteriores">‹</button>
-                  <div className="date-strip-days">
-                    {dateOptions.map((dateOption) => (
-                      <button
-                        key={dateOption.value}
-                        type="button"
-                        className={`date-option ${form.appointmentDate === dateOption.value ? 'selected' : ''} ${dateOption.isOverflowLimit ? 'limit-blocked' : ''}`}
-                        onClick={() => dateOption.isOverflowLimit ? setWeekLimitModal(true) : handleChange('appointmentDate', dateOption.value)}
-                      >
-                        <strong>{dateOption.label}</strong>
-                        {dateOption.isOverflowLimit && <small>Límite máximo</small>}
-                      </button>
-                    ))}
-                  </div>
-                  <button type="button" className="date-strip-arrow" onClick={() => { const next = dateOffset + 7; if (next > displayUntilWarningDays) { setWeekLimitModal(true); return; } setDateOffset(next); }} aria-label="Ver más fechas">›</button>
+            <div className="span-two internal-date-strip-field">
+              <span className="field-label">Fecha de la cita <span className="required-star">*</span></span>
+              <div className={`date-strip ${fieldErrors.appointmentDate ? 'input-error' : ''}`} aria-label="Seleccionar fecha de la cita">
+                <button type="button" className="date-strip-arrow" onClick={() => setDateOffset((current) => Math.max(0, current - 7))} disabled={dateOffset === 0} aria-label="Ver fechas anteriores">‹</button>
+                <div className="date-strip-days">
+                  {dateOptions.map((dateOption) => (
+                    <button
+                      key={dateOption.value}
+                      type="button"
+                      className={`date-option ${form.appointmentDate === dateOption.value ? 'selected' : ''} ${dateOption.isOverflowLimit ? 'limit-blocked' : ''}`}
+                      onClick={() => dateOption.isOverflowLimit ? setWeekLimitModal(true) : handleChange('appointmentDate', dateOption.value)}
+                    >
+                      <strong>{dateOption.label}</strong>
+                      {dateOption.isOverflowLimit && <small>Límite máximo</small>}
+                    </button>
+                  ))}
                 </div>
-                {form.appointmentDate && <small className="muted-text">Fecha seleccionada: {formatDateLabel(form.appointmentDate)}</small>}
+                <button type="button" className="date-strip-arrow" onClick={() => { const next = dateOffset + 7; if (next > displayUntilWarningDays) { setWeekLimitModal(true); return; } setDateOffset(next); }} aria-label="Ver más fechas">›</button>
               </div>
-              <label>
-                Canal de contacto <span className="required-star">*</span>
-                <select value={form.channel} onChange={(event) => handleChange('channel', event.target.value)}>
-                  <option value="WhatsApp">WhatsApp</option>
-                  <option value="Phone">Llamada</option>
-                  <option value="Internal">Mostrador</option>
-                </select>
-              </label>
-              <label className="span-two">
-                Observaciones para la atención
-                <textarea className={fieldErrors.notes ? 'input-error' : ''} rows={3} maxLength={500} value={form.notes} placeholder="Ejemplo: paciente solicita control, llega por WhatsApp, requiere confirmación telefónica..." onChange={(event) => handleChange('notes', event.target.value)} />
-              </label>
+              {form.appointmentDate && <small className="muted-text">Fecha seleccionada: {formatDateLabel(form.appointmentDate)}</small>}
             </div>
           </div>
 
-          <div className="stack-sm">
-            <h3>3. Selecciona una hora disponible</h3>
+          <div className="appointment-flow-card stack-md">
+            <div className="step-hint">
+              <strong>3. Selecciona una hora disponible</strong>
+              <span>Elige una franja disponible antes de completar el canal y las observaciones.</span>
+            </div>
             <div className="slot-grid">
               {slots.length === 0 && <div className="empty-state">Selecciona primero el profesional y la fecha. Luego aquí aparecerán las horas disponibles.</div>}
               {slots.map((slot) => (
@@ -448,10 +446,31 @@ export function InternalNewAppointmentPage() {
             </div>
           </div>
 
+          <div className="appointment-flow-card stack-md">
+            <div className="step-hint">
+              <strong>4. Completa canal y observaciones</strong>
+              <span>Registra cómo contactó el paciente y deja una nota útil para la atención.</span>
+            </div>
+            <div className="form-grid">
+              <label>
+                Canal de contacto <span className="required-star">*</span>
+                <select value={form.channel} onChange={(event) => handleChange('channel', event.target.value)}>
+                  <option value="WhatsApp">WhatsApp</option>
+                  <option value="Phone">Llamada</option>
+                  <option value="Internal">Mostrador</option>
+                </select>
+              </label>
+              <label className="span-two">
+                Observaciones para la atención
+                <textarea className={fieldErrors.notes ? 'input-error' : ''} rows={3} maxLength={500} value={form.notes} placeholder="Ejemplo: paciente solicita control, llega por WhatsApp, requiere confirmación telefónica..." onChange={(event) => handleChange('notes', event.target.value)} />
+              </label>
+            </div>
+          </div>
+
           {appointmentMessage && <div className="feedback-card error">{appointmentMessage}</div>}
         </section>
 
-        <div className="inline-actions end">
+        <div className="inline-actions end internal-new-appointment-submit">
           <button type="submit" className="button" disabled={submitting}>
             {submitting ? 'Creando cita...' : 'Crear cita'}
           </button>

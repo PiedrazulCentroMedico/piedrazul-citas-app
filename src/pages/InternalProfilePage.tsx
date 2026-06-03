@@ -4,15 +4,23 @@ import { useAuth } from '../auth/AuthContext';
 import { PortalTabs } from '../components/PortalTabs';
 import type { ProviderSchedule, ProviderSchedulePayload } from '../types';
 import { getLinkedProviderId, linkDefaultSeededDoctors } from '../utils/sessionStorage';
+import { demoProviderSchedules } from '../utils/demoProviders';
 import { sanitizeNameInput } from '../utils/validators';
 
+function normalizeText(value: string) {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+}
+
 export function InternalProfilePage() {
-  const { session } = useAuth();
+  const { session, changeOwnPassword } = useAuth();
   const [schedule, setSchedule] = useState<ProviderSchedule | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, boolean>>({});
   const [form, setForm] = useState({ firstName: '', lastName: '', specialty: '', defaultSlotIntervalMinutes: 30 });
+  const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+  const [passwordMessage, setPasswordMessage] = useState<string | null>(null);
+  const [changingPassword, setChangingPassword] = useState(false);
 
   const tabs = useMemo(() => ([
     { to: '/portal/interno/citas', label: 'Mis citas' },
@@ -23,29 +31,32 @@ export function InternalProfilePage() {
   useEffect(() => {
     if (!session) return;
 
+    const hydrateProfile = (items: ProviderSchedule[], showOfflineNotice = false) => {
+      linkDefaultSeededDoctors(items);
+      const linkedProviderId = getLinkedProviderId(session.email);
+      const normalizedDisplayName = normalizeText(session.displayName ?? '');
+      const found = items.find((item) => item.providerId === linkedProviderId)
+        ?? items.find((item) => normalizeText(item.providerName).includes(normalizedDisplayName) || normalizedDisplayName.includes(normalizeText(item.providerName)))
+        ?? items[0]
+        ?? null;
+      if (!found) {
+        setMessage('Estamos cargando tu información profesional. Si no aparece, pide al administrador que revise tu vinculación.');
+        return;
+      }
+      setSchedule(found);
+      const [firstName, ...rest] = found.providerName.split(' ');
+      setForm({
+        firstName,
+        lastName: rest.join(' '),
+        specialty: found.specialty,
+        defaultSlotIntervalMinutes: found.defaultSlotIntervalMinutes,
+      });
+      if (showOfflineNotice) setMessage('Se muestra tu perfil demo mientras reinicias la API.');
+    };
+
     apiRequest<ProviderSchedule[]>('/api/admin/provider-schedules', session)
-      .then((items) => {
-        linkDefaultSeededDoctors(items);
-        const linkedProviderId = getLinkedProviderId(session.email);
-        if (!linkedProviderId) {
-          setMessage('No encontramos un perfil profesional asociado a tu cuenta. Pide al administrador que te vincule a un profesional.');
-          return;
-        }
-        const found = items.find((item) => item.providerId === linkedProviderId) ?? null;
-        if (!found) {
-          setMessage('No encontramos tu perfil profesional en el sistema.');
-          return;
-        }
-        setSchedule(found);
-        const [firstName, ...rest] = found.providerName.split(' ');
-        setForm({
-          firstName,
-          lastName: rest.join(' '),
-          specialty: found.specialty,
-          defaultSlotIntervalMinutes: found.defaultSlotIntervalMinutes,
-        });
-      })
-      .catch((error: Error) => setMessage(error.message));
+      .then((items) => hydrateProfile(items))
+      .catch(() => hydrateProfile(demoProviderSchedules, true));
   }, [session]);
 
   const updateForm = (field: keyof typeof form, value: string | number) => {
@@ -90,6 +101,44 @@ export function InternalProfilePage() {
     }
   };
 
+
+  const updatePasswordForm = (field: keyof typeof passwordForm, value: string) => {
+    setPasswordForm((current) => ({ ...current, [field]: value }));
+    setPasswordMessage(null);
+  };
+
+  const savePassword = async () => {
+    const currentPassword = passwordForm.currentPassword.trim();
+    const newPassword = passwordForm.newPassword.trim();
+    const confirmPassword = passwordForm.confirmPassword.trim();
+
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      setPasswordMessage('Completa la contraseña actual, la nueva contraseña y la confirmación.');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordMessage('La nueva contraseña y la confirmación no coinciden.');
+      return;
+    }
+
+    if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/.test(newPassword)) {
+      setPasswordMessage('La nueva contraseña debe tener mínimo 8 caracteres, una mayúscula, una minúscula y un número.');
+      return;
+    }
+
+    try {
+      setChangingPassword(true);
+      await changeOwnPassword(currentPassword, newPassword);
+      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      setPasswordMessage('Tu contraseña fue actualizada correctamente.');
+    } catch (error) {
+      setPasswordMessage(error instanceof Error ? error.message : 'No pudimos cambiar la contraseña.');
+    } finally {
+      setChangingPassword(false);
+    }
+  };
+
   return (
     <div className="stack-lg">
       <section className="section-card">
@@ -128,6 +177,52 @@ export function InternalProfilePage() {
         <div className="inline-actions end">
           <button type="button" className="button" onClick={() => void saveProfile()} disabled={submitting || !schedule}>
             {submitting ? 'Guardando...' : 'Guardar perfil'}
+          </button>
+        </div>
+      </section>
+
+      <section className="section-card stack-md">
+        <div>
+          <span className="eyebrow">Seguridad</span>
+          <h2>Cambiar contraseña</h2>
+          <p className="muted-text">Actualiza tu clave de acceso al portal interno. Se eliminarán espacios al inicio y al final para evitar errores al iniciar sesión.</p>
+        </div>
+
+        <div className="form-grid">
+          <label>
+            Contraseña actual <span className="required-star">*</span>
+            <input
+              type="password"
+              value={passwordForm.currentPassword}
+              onChange={(event) => updatePasswordForm('currentPassword', event.target.value)}
+              autoComplete="current-password"
+            />
+          </label>
+          <label>
+            Nueva contraseña <span className="required-star">*</span>
+            <input
+              type="password"
+              value={passwordForm.newPassword}
+              onChange={(event) => updatePasswordForm('newPassword', event.target.value)}
+              autoComplete="new-password"
+            />
+          </label>
+          <label>
+            Confirmar contraseña <span className="required-star">*</span>
+            <input
+              type="password"
+              value={passwordForm.confirmPassword}
+              onChange={(event) => updatePasswordForm('confirmPassword', event.target.value)}
+              autoComplete="new-password"
+            />
+          </label>
+        </div>
+
+        {passwordMessage && <div className={`feedback-card ${passwordMessage.includes('correctamente') ? 'success' : 'error'}`}>{passwordMessage}</div>}
+
+        <div className="inline-actions end">
+          <button type="button" className="button secondary" onClick={() => void savePassword()} disabled={changingPassword}>
+            {changingPassword ? 'Actualizando...' : 'Cambiar contraseña'}
           </button>
         </div>
       </section>

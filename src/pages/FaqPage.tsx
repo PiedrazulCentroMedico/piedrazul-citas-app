@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { WhatsAppButton } from '../components/WhatsAppButton';
 
 const generalFaqs = [
   {
@@ -35,7 +36,7 @@ const generalFaqs = [
   },
 ];
 
-export function FaqPage() {
+export function FaqPage({ mode = 'patient' }: { mode?: 'patient' | 'internal' }) {
   return (
     <div className="stack-lg">
       <section className="section-card faq-hero">
@@ -44,7 +45,8 @@ export function FaqPage() {
         <p className="muted-text">Consulta aquí las dudas generales sobre reserva, reprogramación, datos del paciente y seguridad.</p>
         <div className="inline-actions wrap">
           <Link className="button" to="/reservar">Reservar cita</Link>
-          <Link className="button button-secondary" to="/portal/paciente">Ir a mi portal</Link>
+          <WhatsAppButton href="https://wa.me/573001112233" label="Ayuda por WhatsApp" />
+          <Link className="button button-secondary" to={mode === 'internal' ? '/portal/interno/citas' : '/portal/paciente'}>{mode === 'internal' ? 'Volver al portal interno' : 'Ir a mi portal'}</Link>
         </div>
       </section>
 

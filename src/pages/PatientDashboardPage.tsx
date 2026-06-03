@@ -4,6 +4,7 @@ import { translateStatusLabel } from '../utils/status';
 import { apiRequest } from '../api/http';
 import { useAuth } from '../auth/AuthContext';
 import { PortalTabs } from '../components/PortalTabs';
+import { WhatsAppButton } from '../components/WhatsAppButton';
 import type { AppointmentHistoryResponse, AppointmentResponse } from '../types';
 import { formatDateLabel } from '../utils/validators';
 
@@ -118,7 +119,7 @@ export function PatientDashboardPage() {
           <div className="inline-actions wrap appointment-actions">
             <Link className="button" to="/reservar">Reservar nueva cita</Link>
             <Link className="button button-secondary" to="/portal/paciente/perfil">Actualizar perfil</Link>
-            <a className="button button-secondary" href="https://wa.me/573001234567" target="_blank" rel="noreferrer">Ayuda por WhatsApp</a>
+            <WhatsAppButton label="Ayuda por WhatsApp" />
           </div>
         </article>
       </section>

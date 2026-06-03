@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { apiRequest } from '../api/http';
 import { useAuth } from '../auth/AuthContext';
+import { WhatsAppButton } from '../components/WhatsAppButton';
 import type { AppointmentResponse, AvailabilitySlot, CaptchaChallenge, Gender, GenderOption, PatientProfile, PatientPublicLookup, ProviderSummary, PublicAppointmentPayload, SystemSettings } from '../types';
 import { formatDateLabel, getOlderAdultBirthDateWarning, sanitizeNameInput, validatePatientForm } from '../utils/validators';
 import { translateStatusLabel } from '../utils/status';
@@ -718,12 +719,6 @@ export function PublicBookingPage() {
         <section ref={scheduleStepRef} className="section-card stack-md">
           <h2>{isPatientSession ? 'Paso 3. Selecciona fecha y hora' : 'Paso 4. Selecciona fecha y hora'}</h2>
           <p className="muted-text">Selecciona primero el día de atención; luego marca una hora disponible para confirmar la cita.</p>
-          <div className="color-legend" aria-label="Guía de colores y estados">
-            <span><i className="legend-box legend-available" /> Disponible</span>
-            <span><i className="legend-box legend-selected" /> Seleccionado</span>
-            <span><i className="legend-box legend-unavailable" /> No disponible</span>
-          </div>
-
           <div className="date-strip" aria-label="Seleccionar fecha de la cita">
             <button
               type="button"
@@ -841,7 +836,7 @@ export function PublicBookingPage() {
             <h2>Preguntas frecuentes</h2>
             <p className="muted-text">Resuelve dudas rápidas sin salir del proceso.</p>
           </div>
-          <a className="button button-secondary" href="https://wa.me/573001234567" target="_blank" rel="noreferrer">Ayuda por WhatsApp</a>
+          <WhatsAppButton label="Ayuda por WhatsApp" />
         </div>
         <div className="faq-grid">
           <details>

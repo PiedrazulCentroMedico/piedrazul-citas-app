@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import loginIllustration from '../assets/login-session.png';
 import { saveRegisterDraft } from '../utils/sessionStorage';
 import { sanitizeNameInput, validateStrongPassword } from '../utils/validators';
 
@@ -94,6 +95,7 @@ export function PatientRegisterPage() {
         <div className="stack-sm auth-copy">
           <span className="eyebrow">Nuevo usuario</span>
           <h1>Crea tu cuenta</h1>
+          <div className="login-illustration-inline" aria-hidden="true"><img src={loginIllustration} alt="" /></div>
           <p className="muted-text">
             La cédula será tu dato de acceso. El correo se completa después y será opcional.
           </p>

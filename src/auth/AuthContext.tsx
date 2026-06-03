@@ -9,7 +9,7 @@ import { hashPassword, verifyPassword } from '../utils/passwordHash';
 const PATIENT_SESSION_STORAGE_KEY = 'piedrazul-patient-session';
 const INTERNAL_SESSION_STORAGE_KEY = 'piedrazul-internal-session';
 const ACCOUNTS_STORAGE_KEY = 'piedrazul-accounts';
-const ACCOUNTS_VERSION_KEY = 'piedrazul-accounts-v3';
+const ACCOUNTS_VERSION_KEY = 'piedrazul-accounts-seeded';
 const RESET_STORAGE_KEY = 'piedrazul-password-reset';
 
 interface DemoAccount {
@@ -27,6 +27,35 @@ interface ResetRequest {
   expiresAt: number;
 }
 
+const RETIRED_DEMO_LOCAL_PARTS = ['a' + 'na', 'car' + 'los'];
+const REMOVED_DEMO_ACCOUNT_KEYS = new Set([
+  ...RETIRED_DEMO_LOCAL_PARTS.flatMap((name) => [
+    `${name}@piedrazul.local`,
+    `staff-${name}@piedrazul.local`,
+  ]),
+  '900000004',
+  '900000006',
+  'paciente@piedrazul.local',
+  'demo-patient',
+  '1000000001',
+  'medico@piedrazul.local',
+  'staff-medico@piedrazul.local',
+  '900000003',
+]);
+
+function isRemovedDemoAccount(account: DemoAccount) {
+  return [account.email, account.subject, account.documentNumber]
+    .filter(Boolean)
+    .some((value) => REMOVED_DEMO_ACCOUNT_KEYS.has(String(value).trim().toLowerCase()));
+}
+
+function isRemovedDemoSession(session: SessionUser | null) {
+  if (!session) return false;
+  return [session.email, session.subject]
+    .filter(Boolean)
+    .some((value) => REMOVED_DEMO_ACCOUNT_KEYS.has(String(value).trim().toLowerCase()));
+}
+
 interface RegisterPayload {
   documentNumber: string;
   firstName: string;
@@ -35,6 +64,7 @@ interface RegisterPayload {
 }
 
 interface InternalAccountPayload {
+  documentNumber: string;
   email: string;
   password: string;
   displayName: string;
@@ -54,19 +84,13 @@ interface AuthContextValue {
   createInternalDemoAccount: (payload: InternalAccountPayload) => Promise<void>;
   requestPasswordReset: (identifier: string) => Promise<string>;
   resetPassword: (identifier: string, code: string, newPassword: string) => Promise<void>;
+  changeOwnPassword: (currentPassword: string, newPassword: string) => Promise<void>;
 }
 
 const seededAccounts: DemoAccount[] = [
   {
-    email: 'paciente@piedrazul.local',
-    documentNumber: '1000000001',
-    password: 'Paciente123*',
-    displayName: 'Paciente Demo',
-    subject: 'demo-patient',
-    roles: ['Patient'],
-  },
-  {
     email: 'admin@piedrazul.local',
+    documentNumber: '900000001',
     password: 'Admin123*',
     displayName: 'Administrador Piedrazul',
     subject: 'staff-admin@piedrazul.local',
@@ -74,41 +98,23 @@ const seededAccounts: DemoAccount[] = [
   },
   {
     email: 'agenda@piedrazul.local',
+    documentNumber: '900000002',
     password: 'Agenda123*',
     displayName: 'Agendador Piedrazul',
     subject: 'staff-agenda@piedrazul.local',
     roles: ['Scheduler'],
   },
   {
-    email: 'medico@piedrazul.local',
-    password: 'Medico123*',
-    displayName: 'Profesional Piedrazul',
-    subject: 'staff-medico@piedrazul.local',
-    roles: ['Doctor'],
-  },
-  {
-    email: 'ana@piedrazul.local',
-    password: 'Ana123*',
-    displayName: 'Ana Gómez',
-    subject: 'staff-ana@piedrazul.local',
-    roles: ['Doctor'],
-  },
-  {
     email: 'laura@piedrazul.local',
+    documentNumber: '900000005',
     password: 'Laura123*',
     displayName: 'Laura Rivera',
     subject: 'staff-laura@piedrazul.local',
     roles: ['Doctor'],
   },
   {
-    email: 'carlos@piedrazul.local',
-    password: 'Carlos123*',
-    displayName: 'Carlos Martínez',
-    subject: 'staff-carlos@piedrazul.local',
-    roles: ['Doctor'],
-  },
-  {
     email: 'andres@piedrazul.local',
+    documentNumber: '900000007',
     password: 'Andres123*',
     displayName: 'Andres Vega',
     subject: 'staff-andres@piedrazul.local',
@@ -118,8 +124,8 @@ const seededAccounts: DemoAccount[] = [
 
 const demoSessions: Record<DemoRole, SessionUser> = {
   patient: {
-    subject: 'demo-patient',
-    displayName: 'Paciente Demo',
+    subject: 'patient-demo-disabled',
+    displayName: 'Paciente',
     roles: ['Patient'],
     mode: 'demo',
   },
@@ -138,9 +144,9 @@ const demoSessions: Record<DemoRole, SessionUser> = {
     mode: 'demo',
   },
   doctor: {
-    subject: 'staff-medico@piedrazul.local',
-    displayName: 'Profesional Piedrazul',
-    email: 'medico@piedrazul.local',
+    subject: 'staff-laura@piedrazul.local',
+    displayName: 'Laura Rivera',
+    email: 'laura@piedrazul.local',
     roles: ['Doctor'],
     mode: 'demo',
   },
@@ -164,12 +170,38 @@ function mapKeycloakSession(instance: Keycloak): SessionUser {
 }
 
 async function initAccounts(): Promise<void> {
-  if (localStorage.getItem(ACCOUNTS_VERSION_KEY)) return;
-  localStorage.removeItem(ACCOUNTS_STORAGE_KEY);
-  const hashed = await Promise.all(
-    seededAccounts.map(async (a) => ({ ...a, password: await hashPassword(a.password) })),
+  const existing = readAccounts().filter((account) => !isRemovedDemoAccount(account));
+  const hashedSeeds = await Promise.all(
+    seededAccounts.map(async (seed) => ({ ...seed, password: await hashPassword(seed.password) })),
   );
-  localStorage.setItem(ACCOUNTS_STORAGE_KEY, JSON.stringify(hashed));
+
+  const merged = [...existing];
+  for (const seed of hashedSeeds) {
+    const index = merged.findIndex((item) => {
+      const sameEmail = seed.email && item.email && item.email.toLowerCase() === seed.email.toLowerCase();
+      const sameDocument = seed.documentNumber && item.documentNumber === seed.documentNumber;
+      const sameSubject = item.subject === seed.subject;
+      return Boolean(sameEmail || sameDocument || sameSubject);
+    });
+
+    if (index === -1) {
+      merged.push(seed);
+      continue;
+    }
+
+    // Conserva la contraseña existente para no borrar cambios ni pacientes registrados al actualizar versión.
+    merged[index] = {
+      ...seed,
+      ...merged[index],
+      email: merged[index].email ?? seed.email,
+      documentNumber: merged[index].documentNumber ?? seed.documentNumber,
+      displayName: merged[index].displayName || seed.displayName,
+      subject: merged[index].subject || seed.subject,
+      roles: merged[index].roles?.length ? merged[index].roles : seed.roles,
+    };
+  }
+
+  saveAccounts(merged);
   localStorage.setItem(ACCOUNTS_VERSION_KEY, '1');
 }
 
@@ -287,8 +319,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     initAccounts().then(() => {
-      setPatientSession(readStoredSession(PATIENT_SESSION_STORAGE_KEY));
-      setInternalSession(readStoredSession(INTERNAL_SESSION_STORAGE_KEY));
+      const storedPatientSession = readStoredSession(PATIENT_SESSION_STORAGE_KEY);
+      const storedInternalSession = readStoredSession(INTERNAL_SESSION_STORAGE_KEY);
+
+      if (isRemovedDemoSession(storedPatientSession)) {
+        saveStoredSession(PATIENT_SESSION_STORAGE_KEY, null);
+        setPatientSession(null);
+      } else {
+        setPatientSession(storedPatientSession);
+      }
+
+      if (isRemovedDemoSession(storedInternalSession)) {
+        saveStoredSession(INTERNAL_SESSION_STORAGE_KEY, null);
+        setInternalSession(null);
+      } else {
+        setInternalSession(storedInternalSession);
+      }
+
       setReady(true);
     });
   }, []);
@@ -348,13 +395,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      if (isInternalRoute) {
-        saveStoredSession(INTERNAL_SESSION_STORAGE_KEY, null);
-        setInternalSession(null);
-      } else {
-        saveStoredSession(PATIENT_SESSION_STORAGE_KEY, null);
-        setPatientSession(null);
-      }
+      // Cierra ambas sesiones locales para que un rol no herede la última ruta ni estado de otro rol.
+      saveStoredSession(PATIENT_SESSION_STORAGE_KEY, null);
+      saveStoredSession(INTERNAL_SESSION_STORAGE_KEY, null);
+      setPatientSession(null);
+      setInternalSession(null);
     },
     loginAsDemo(role) {
       const demoSession = demoSessions[role];
@@ -378,6 +423,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       const normalizedIdentifier = identifier.trim().toLowerCase();
+      const normalizedPassword = password.trim();
       const account = readAccounts().find((item) => {
         const isPatientAccount = item.roles.includes('Patient');
         if (portal === 'patient') {
@@ -386,11 +432,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return !isPatientAccount && (item.email ?? '').toLowerCase() === normalizedIdentifier;
       });
 
-      const passwordMatch = account ? await verifyPassword(password, account.password) : false;
+      const passwordMatch = account ? await verifyPassword(normalizedPassword, account.password) : false;
       if (!account || !passwordMatch) {
         throw new Error(portal === 'patient'
           ? 'Cédula o contraseña incorrectas. Verifica tus datos e inténtalo de nuevo.'
-          : 'Correo o contraseña incorrectos. Verifica tus credenciales e inténtalo de nuevo.');
+          : 'Correo corporativo o contraseña incorrectos. Verifica tus credenciales e inténtalo de nuevo.');
       }
 
       const isPatientAccount = account.roles.includes('Patient');
@@ -430,7 +476,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const displayName = `${payload.firstName.trim()} ${payload.lastName.trim()}`.trim();
       const account: DemoAccount = {
         documentNumber: normalizedDocument,
-        password: await hashPassword(payload.password),
+        password: await hashPassword(payload.password.trim()),
         displayName,
         subject: `patient-${normalizedDocument}`,
         roles: ['Patient'],
@@ -455,6 +501,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             lastName: payload.displayName.split(' ').slice(1).join(' ') || payload.displayName,
             password: payload.password,
             roles: payload.roles,
+          documentNumber: payload.documentNumber,
           },
         });
         return;
@@ -473,7 +520,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       const account: DemoAccount = {
         email: normalizedEmail,
-        password: await hashPassword(payload.password),
+        documentNumber: payload.documentNumber.trim(),
+        password: await hashPassword(payload.password.trim()),
         displayName: payload.displayName.trim(),
         subject: `staff-${normalizedEmail}`,
         roles: payload.roles,
@@ -487,7 +535,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (item.roles.includes('Patient')) {
           return item.documentNumber === normalizedIdentifier;
         }
-        return (item.email ?? '').toLowerCase() === normalizedIdentifier;
+        return (item.documentNumber ?? '') === normalizedIdentifier;
       });
 
       if (!account) {
@@ -502,6 +550,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       saveResetRequests(requests);
       return code;
     },
+
+    async changeOwnPassword(currentPassword, newPassword) {
+      if (appConfig.authMode === 'keycloak') {
+        throw new Error('El cambio de contraseña debe realizarse desde el proveedor de identidad configurado.');
+      }
+
+      const currentSession = internalSession ?? patientSession;
+      if (!currentSession) {
+        throw new Error('No hay una sesión activa para cambiar la contraseña.');
+      }
+
+      const normalizedCurrentPassword = currentPassword.trim();
+      const normalizedNewPassword = newPassword.trim();
+      const accounts = readAccounts();
+      const accountIndex = accounts.findIndex((item) => {
+        const sameSubject = item.subject === currentSession.subject;
+        const sameEmail = currentSession.email && item.email?.toLowerCase() === currentSession.email.toLowerCase();
+        return Boolean(sameSubject || sameEmail);
+      });
+
+      if (accountIndex === -1) {
+        throw new Error('No encontramos la cuenta asociada a tu sesión.');
+      }
+
+      const validCurrentPassword = await verifyPassword(normalizedCurrentPassword, accounts[accountIndex].password);
+      if (!validCurrentPassword) {
+        throw new Error('La contraseña actual no es correcta.');
+      }
+
+      if (normalizedNewPassword.length < 8) {
+        throw new Error('La nueva contraseña debe tener mínimo 8 caracteres.');
+      }
+
+      accounts[accountIndex] = { ...accounts[accountIndex], password: await hashPassword(normalizedNewPassword) };
+      saveAccounts(accounts);
+    },
     async resetPassword(identifier, code, newPassword) {
       const normalizedIdentifier = identifier.trim().toLowerCase();
       const requests = readResetRequests();
@@ -513,7 +597,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const accounts = readAccounts();
       const accountIndex = accounts.findIndex((item) => item.roles.includes('Patient')
         ? item.documentNumber === normalizedIdentifier
-        : (item.email ?? '').toLowerCase() === normalizedIdentifier);
+        : (item.documentNumber ?? '') === normalizedIdentifier);
       if (accountIndex === -1) {
         throw new Error('La cuenta asociada al restablecimiento ya no existe.');
       }

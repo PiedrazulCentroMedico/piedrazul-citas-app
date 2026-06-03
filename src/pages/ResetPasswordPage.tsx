@@ -19,8 +19,10 @@ export function ResetPasswordPage() {
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!/^\d{5,20}$/.test(form.identifier.trim())) {
-      setMessage('Ingresa tu número de cédula.');
+    const cleanIdentifier = form.identifier.trim().toLowerCase();
+    const looksLikeDocument = /^\d{5,20}$/.test(cleanIdentifier);
+    if (!looksLikeDocument) {
+      setMessage('Ingresa solo tu número de cédula, sin puntos ni espacios.');
       return;
     }
     if (!form.code.trim()) {
@@ -39,7 +41,8 @@ export function ResetPasswordPage() {
     try {
       setSubmitting(true);
       await resetPassword(form.identifier, form.code, form.password);
-      navigate('/iniciar-sesion', { replace: true, state: { resetDone: true } });
+      const isInternal = form.identifier.trim().startsWith('9');
+      navigate(isInternal ? '/portal/interno/login' : '/iniciar-sesion', { replace: true, state: { resetDone: true } });
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'No fue posible restablecer la contraseña.');
     } finally {
@@ -58,8 +61,8 @@ export function ResetPasswordPage() {
 
         <form className="auth-form" onSubmit={handleSubmit}>
           <label>
-            Número de cédula <span className="required-star">*</span>
-            <input inputMode="numeric" value={form.identifier} onChange={(event) => handleChange('identifier', event.target.value.replace(/\D/g, ''))} />
+            Cédula <span className="required-star">*</span>
+            <input value={form.identifier} onChange={(event) => handleChange('identifier', event.target.value)} placeholder="Ej. 1002778529" inputMode="numeric" />
           </label>
           <label>
             Código temporal <span className="required-star">*</span>
@@ -90,7 +93,8 @@ export function ResetPasswordPage() {
 
           <div className="auth-links">
             <Link to="/olvide-mi-contrasena">Generar otro código</Link>
-            <Link to="/iniciar-sesion">Volver a iniciar sesión</Link>
+            <Link to="/iniciar-sesion">Volver a pacientes</Link>
+            <Link to="/portal/interno/login">Volver a interno</Link>
           </div>
         </form>
       </section>

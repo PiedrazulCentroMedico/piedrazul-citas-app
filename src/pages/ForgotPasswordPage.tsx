@@ -11,8 +11,10 @@ export function ForgotPasswordPage() {
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!/^\d{5,20}$/.test(identifier.trim())) {
-      setMessage('Ingresa tu número de cédula para generar el código de recuperación.');
+    const cleanIdentifier = identifier.trim().toLowerCase();
+    const looksLikeDocument = /^\d{5,20}$/.test(cleanIdentifier);
+    if (!looksLikeDocument) {
+      setMessage('Ingresa solo tu número de cédula, sin puntos ni espacios.');
       return;
     }
 
@@ -38,13 +40,13 @@ export function ForgotPasswordPage() {
         <div className="stack-sm auth-copy">
           <span className="eyebrow">Recuperación</span>
           <h1>¿Olvidaste tu contraseña?</h1>
-          <p className="muted-text">Ingresa tu número de cédula y genera un código temporal para restablecer tu acceso.</p>
+          <p className="muted-text">Ingresa únicamente tu número de cédula. Sirve para pacientes y personal interno.</p>
         </div>
 
         <form className="auth-form" onSubmit={handleSubmit}>
           <label>
-            Número de cédula <span className="required-star">*</span>
-            <input inputMode="numeric" value={identifier} onChange={(event) => setIdentifier(event.target.value.replace(/\D/g, ''))} />
+            Cédula <span className="required-star">*</span>
+            <input value={identifier} onChange={(event) => setIdentifier(event.target.value)} placeholder="Ej. 1002778529" inputMode="numeric" />
           </label>
 
           {message && <div className={`feedback-card ${code ? 'success' : 'error'}`}>{message}</div>}
@@ -61,7 +63,8 @@ export function ForgotPasswordPage() {
 
           <div className="auth-links">
             <Link to="/restablecer-contrasena">Ya tengo un código</Link>
-            <Link to="/iniciar-sesion">Volver a iniciar sesión</Link>
+            <Link to="/iniciar-sesion">Volver a pacientes</Link>
+            <Link to="/portal/interno/login">Volver a interno</Link>
           </div>
         </form>
       </section>

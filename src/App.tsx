@@ -29,6 +29,7 @@ function App() {
             <Route path="/" element={<HomePage />} />
             <Route path="/reservar" element={<PublicBookingPage />} />
             <Route path="/preguntas-frecuentes" element={<FaqPage />} />
+            <Route path="/portal/interno/preguntas-frecuentes" element={<ProtectedRoute roles={['Admin', 'Scheduler', 'Doctor']} redirectTo="/portal/interno/login"><FaqPage mode="internal" /></ProtectedRoute>} />
             <Route path="/iniciar-sesion" element={<PatientLoginPage />} />
             <Route path="/crear-cuenta" element={<PatientRegisterPage />} />
             <Route path="/olvide-mi-contrasena" element={<ForgotPasswordPage />} />

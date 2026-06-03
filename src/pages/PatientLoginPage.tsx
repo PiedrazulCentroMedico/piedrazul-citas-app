@@ -13,14 +13,15 @@ export function PatientLoginPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const requestedPath = (location.state as { from?: { pathname?: string } } | undefined)?.from?.pathname;
-  const redirectTo = requestedPath?.startsWith('/portal/paciente') ? requestedPath : '/portal/paciente';
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setMessage(null);
 
-    if (!documentNumber.trim() || !password.trim()) {
+    const cleanDocument = documentNumber.trim().replace(/\D/g, '');
+    const cleanPassword = password.trim();
+
+    if (!cleanDocument || !cleanPassword) {
       setMessage('Ingresa tu número de cédula y tu contraseña para continuar.');
       return;
     }
@@ -32,8 +33,8 @@ export function PatientLoginPage() {
         return;
       }
 
-      await loginWithCredentials(documentNumber.replace(/\D/g, ''), password, 'patient');
-      navigate(redirectTo, { replace: true });
+      await loginWithCredentials(cleanDocument, cleanPassword, 'patient');
+      navigate('/portal/paciente', { replace: true });
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'No fue posible iniciar sesión.');
     } finally {
@@ -59,7 +60,7 @@ export function PatientLoginPage() {
           </label>
           <label>
             Contraseña <span className="required-star">*</span>
-            <input type={showPassword ? 'text' : 'password'} autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} />
+            <input type={showPassword ? 'text' : 'password'} autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} onBlur={(event) => setPassword(event.target.value.trim())} />
           </label>
           <label className="checkbox-inline">
             <input type="checkbox" checked={showPassword} onChange={(event) => setShowPassword(event.target.checked)} />

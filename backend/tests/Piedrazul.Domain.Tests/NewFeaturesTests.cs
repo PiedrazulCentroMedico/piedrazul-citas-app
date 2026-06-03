@@ -22,7 +22,7 @@ public sealed class ExcelExporterTests
         var citas = new List<AppointmentResponse>
         {
             new(Guid.NewGuid(), "Dr. Juan Pérez", "Medicina General",
-                "Carlos Muñoz", "1234567890", "3001234567",
+                "Pedro Muñoz", "1234567890", "3001234567",
                 TestDate, "09:00", "09:30", "Scheduled", "InPerson", null),
         };
 
