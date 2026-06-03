@@ -45,6 +45,7 @@ function NavIcon({ type }: { type: 'home' | 'calendar' | 'user' | 'plus' }) {
 export function AppLayout({ children }: LayoutProps) {
   const { session, logout } = useAuth();
   const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem('piedrazul-theme') === 'dark');
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const location = useLocation();
 
   const isInternalRoute = location.pathname.startsWith('/portal/interno');
@@ -55,6 +56,7 @@ export function AppLayout({ children }: LayoutProps) {
   const isPatient = session?.roles.includes('Patient') ?? false;
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    setIsMobileMenuOpen(false);
   }, [location.pathname]);
 
   useEffect(() => {
@@ -76,7 +78,20 @@ export function AppLayout({ children }: LayoutProps) {
             </div>
           </Link>
 
-          <nav className="main-nav" aria-label="Navegación principal">
+          <button
+            type="button"
+            className={`mobile-menu-toggle ${isMobileMenuOpen ? 'is-open' : ''}`}
+            aria-label={isMobileMenuOpen ? 'Cerrar menú de navegación' : 'Abrir menú de navegación'}
+            aria-expanded={isMobileMenuOpen}
+            onClick={() => setIsMobileMenuOpen((open) => !open)}
+          >
+            <span />
+            <span />
+            <span />
+            <strong>{isMobileMenuOpen ? 'Cerrar' : 'Menú'}</strong>
+          </button>
+
+          <nav className={`main-nav ${isMobileMenuOpen ? 'is-open' : ''}`} aria-label="Navegación principal">
             {!isInternalRoute && (
               <>
                 <NavLink to="/">
@@ -97,7 +112,7 @@ export function AppLayout({ children }: LayoutProps) {
             {isInternalRoute && doctorAccess && <NavLink to="/portal/interno/perfil">Mi perfil</NavLink>}
           </nav>
 
-          <div className="header-actions">
+          <div className={`header-actions ${isMobileMenuOpen ? 'is-open' : ''}`}>
             <label className="theme-switch" title={isDarkMode ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'} aria-label={isDarkMode ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}>
               <span className="sun">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true">
