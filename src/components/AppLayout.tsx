@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { hasInternalAccess, hasSettingsAccess, isDoctorRole } from '../utils/validators';
@@ -43,6 +44,7 @@ function NavIcon({ type }: { type: 'home' | 'calendar' | 'user' | 'plus' }) {
 
 export function AppLayout({ children }: LayoutProps) {
   const { session, logout } = useAuth();
+  const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem('piedrazul-theme') === 'dark');
   const location = useLocation();
 
   const isInternalRoute = location.pathname.startsWith('/portal/interno');
@@ -52,11 +54,22 @@ export function AppLayout({ children }: LayoutProps) {
   const doctorAccess = isDoctorRole(session?.roles ?? []);
   const isPatient = session?.roles.includes('Patient') ?? false;
 
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  }, [location.pathname]);
+
+  useEffect(() => {
+    const theme = isDarkMode ? 'dark' : 'light';
+    document.documentElement.dataset.theme = theme;
+    document.body.dataset.theme = theme;
+    localStorage.setItem('piedrazul-theme', theme);
+  }, [isDarkMode]);
+
   return (
     <div className="app-shell">
       <header className="topbar">
         <div className="topbar-inner">
-          <Link to="/" className="brand">
+          <Link to={isInternalRoute && internalAccess ? "/portal/interno/citas" : "/"} className="brand">
             <img className="brand-mark brand-logo" src={logoImage} alt="Logo de Piedrazul" />
             <div>
               <strong>Piedrazul</strong>
@@ -76,21 +89,46 @@ export function AppLayout({ children }: LayoutProps) {
                   Reservar cita
                 </NavLink>
                 {isPatient && <NavLink to="/portal/paciente">Mi portal</NavLink>}
+                <NavLink to="/preguntas-frecuentes">Preguntas frecuentes</NavLink>
               </>
             )}
             {isInternalRoute && internalAccess && <NavLink to="/portal/interno/citas">Portal interno</NavLink>}
+            {isInternalRoute && internalAccess && <NavLink to="/portal/interno/preguntas-frecuentes">Preguntas frecuentes</NavLink>}
             {isInternalRoute && settingsAccess && <NavLink to="/portal/interno/configuracion">Configuración</NavLink>}
             {isInternalRoute && doctorAccess && <NavLink to="/portal/interno/perfil">Mi perfil</NavLink>}
           </nav>
 
           <div className="header-actions">
+            <label className="theme-switch" title={isDarkMode ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'} aria-label={isDarkMode ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}>
+              <span className="sun">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true">
+                  <g fill="#ffd43b">
+                    <circle r="5" cy="12" cx="12" />
+                    <path d="m21 13h-1a1 1 0 0 1 0-2h1a1 1 0 0 1 0 2zm-17 0h-1a1 1 0 0 1 0-2h1a1 1 0 0 1 0 2zm13.66-5.66a1 1 0 0 1-.66-.29 1 1 0 0 1 0-1.41l.71-.71a1 1 0 1 1 1.41 1.41l-.71.71a1 1 0 0 1-.75.29zm-12.02 12.02a1 1 0 0 1-.71-.29 1 1 0 0 1 0-1.41l.71-.66a1 1 0 0 1 1.41 1.41l-.71.71a1 1 0 0 1-.7.24zm6.36-14.36a1 1 0 0 1-1-1v-1a1 1 0 0 1 2 0v1a1 1 0 0 1-1 1zm0 17a1 1 0 0 1-1-1v-1a1 1 0 0 1 2 0v1a1 1 0 0 1-1 1zm-5.66-14.66a1 1 0 0 1-.7-.29l-.71-.71a1 1 0 0 1 1.41-1.41l.71.71a1 1 0 0 1 0 1.41 1 1 0 0 1-.71.29zm12.02 12.02a1 1 0 0 1-.7-.29l-.66-.71a1 1 0 0 1 1.36-1.36l.71.71a1 1 0 0 1 0 1.41 1 1 0 0 1-.71.24z" />
+                  </g>
+                </svg>
+              </span>
+              <span className="moon">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" aria-hidden="true">
+                  <path d="M223.5 32C100 32 0 132.3 0 256s100 224 223.5 224c60.6 0 115.5-24.2 155.8-63.4 5-4.9 6.3-12.5 3.1-18.7s-10.1-9.7-17-8.5c-9.8 1.7-19.8 2.6-30.1 2.6-96.9 0-175.5-78.8-175.5-176 0-65.8 36-123.1 89.3-153.3 6.1-3.5 9.2-10.5 7.7-17.3s-7.3-11.9-14.3-12.5c-6.3-.5-12.6-.8-19-.8z" />
+                </svg>
+              </span>
+              <input
+                type="checkbox"
+                className="theme-switch-input"
+                checked={isDarkMode}
+                onChange={(event) => setIsDarkMode(event.target.checked)}
+              />
+              <span className="theme-switch-slider" />
+            </label>
+
             {session ? (
               <>
                 <span className="welcome-chip">
                   <strong>{session.displayName}</strong>
                   <span>{session.roles.includes('Patient') ? 'Paciente' : 'Personal autorizado'}</span>
                 </span>
-                <button className="button" onClick={() => void logout()}>
+                <button type="button" className="button" onClick={() => void logout()}>
                   Cerrar sesión
                 </button>
               </>
@@ -120,6 +158,7 @@ export function AppLayout({ children }: LayoutProps) {
         {!isInternalRoute && (
           <div className="footer-links">
             <Link to="/reservar">Reservar cita</Link>
+            <Link to="/preguntas-frecuentes">Preguntas frecuentes</Link>
             {!session && <Link to="/iniciar-sesion">Iniciar sesión</Link>}
             <Link to="/portal/interno/login">Acceso interno</Link>
           </div>

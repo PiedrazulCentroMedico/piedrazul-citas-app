@@ -21,7 +21,7 @@ public sealed class PatientService(IPatientRepository patientRepository, IAppoin
 
     public async Task<OperationResult<PatientProfileResponse>> UpsertMyProfileAsync(string externalUserId, string? email, PatientProfileUpsertRequest request, CancellationToken cancellationToken = default)
     {
-        var errors = PatientInputValidator.ValidateBasicPatientData(request.DocumentNumber, request.FirstName, request.LastName, request.Phone, request.Email).ToList();
+        var errors = PatientInputValidator.ValidateBasicPatientData(request.DocumentNumber, request.FirstName, request.LastName, request.Phone, request.Email, request.BirthDate).ToList();
         if (errors.Count > 0)
         {
             return OperationResult<PatientProfileResponse>.Validation(errors.ToArray());

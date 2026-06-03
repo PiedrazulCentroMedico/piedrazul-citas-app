@@ -1,5 +1,6 @@
 const DOCTOR_LINKS_STORAGE_KEY = 'piedrazul-doctor-links';
 const REGISTER_DRAFT_STORAGE_KEY = 'piedrazul-register-draft';
+const REMOVED_DEMO_DOCTOR_EMAILS = [...['a' + 'na', 'car' + 'los'].map((name) => `${name}@piedrazul.local`), 'medico@piedrazul.local'];
 
 export interface DoctorLinkMap {
   [email: string]: string;
@@ -15,7 +16,21 @@ export interface RegisterDraft {
 export function readDoctorLinks(): DoctorLinkMap {
   try {
     const raw = localStorage.getItem(DOCTOR_LINKS_STORAGE_KEY);
-    return raw ? JSON.parse(raw) as DoctorLinkMap : {};
+    const links = raw ? JSON.parse(raw) as DoctorLinkMap : {};
+    let changed = false;
+
+    REMOVED_DEMO_DOCTOR_EMAILS.forEach((email) => {
+      if (links[email]) {
+        delete links[email];
+        changed = true;
+      }
+    });
+
+    if (changed) {
+      localStorage.setItem(DOCTOR_LINKS_STORAGE_KEY, JSON.stringify(links));
+    }
+
+    return links;
   } catch {
     return {};
   }
@@ -52,11 +67,8 @@ export function clearRegisterDraft() {
 
 
 const DEFAULT_DOCTOR_PROVIDER_LINKS: Record<string, string[]> = {
-  'ana@piedrazul.local': ['ana gómez', 'ana gomez'],
   'laura@piedrazul.local': ['laura rivera'],
-  'carlos@piedrazul.local': ['carlos martínez', 'carlos martinez'],
   'andres@piedrazul.local': ['andres vega', 'andrés vega'],
-  'medico@piedrazul.local': ['ana gómez', 'ana gomez'],
 };
 
 function normalizeProviderName(value: string) {

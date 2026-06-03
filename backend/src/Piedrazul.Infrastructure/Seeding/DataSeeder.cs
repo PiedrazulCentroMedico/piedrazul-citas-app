@@ -8,38 +8,25 @@ public static class DataSeeder
 {
     public static async Task SeedAsync(AppDbContext dbContext, CancellationToken cancellationToken = default)
     {
+        await RemoveRetiredDemoProvidersAsync(dbContext, cancellationToken);
+        await RemoveRetiredDemoPatientsAsync(dbContext, cancellationToken);
+
+        if (!await dbContext.SystemSettings.AnyAsync(cancellationToken))
+        {
+            dbContext.SystemSettings.Add(new SystemSetting
+            {
+                WeeksAheadBooking = 6,
+                TimeZoneId = "America/Bogota"
+            });
+        }
+
         if (await dbContext.Providers.AnyAsync(cancellationToken))
         {
+            await dbContext.SaveChangesAsync(cancellationToken);
             return;
         }
 
-        var settings = new SystemSetting
-        {
-            WeeksAheadBooking = 6,
-            TimeZoneId = "America/Bogota"
-        };
-
         var providerOne = new Provider
-        {
-            Code = "MED001",
-            FirstName = "Ana",
-            LastName = "Gómez",
-            Specialty = "Medicina general",
-            DefaultSlotIntervalMinutes = 30,
-            IsActive = true
-        };
-
-        var providerTwo = new Provider
-        {
-            Code = "TER001",
-            FirstName = "Carlos",
-            LastName = "Martínez",
-            Specialty = "Terapia física",
-            DefaultSlotIntervalMinutes = 45,
-            IsActive = true
-        };
-
-        var providerThree = new Provider
         {
             Code = "PSI001",
             FirstName = "Laura",
@@ -49,44 +36,91 @@ public static class DataSeeder
             IsActive = true
         };
 
-        dbContext.Providers.AddRange(providerOne, providerTwo, providerThree);
-        dbContext.SystemSettings.Add(settings);
-
-        dbContext.WeeklyAvailabilities.AddRange(
-            new WeeklyAvailability { Provider = providerOne, DayOfWeek = DayOfWeek.Monday, StartTime = new TimeOnly(8, 0), EndTime = new TimeOnly(12, 0), SlotIntervalMinutes = 30, IsActive = true },
-            new WeeklyAvailability { Provider = providerOne, DayOfWeek = DayOfWeek.Wednesday, StartTime = new TimeOnly(14, 0), EndTime = new TimeOnly(18, 0), SlotIntervalMinutes = 30, IsActive = true },
-            new WeeklyAvailability { Provider = providerTwo, DayOfWeek = DayOfWeek.Tuesday, StartTime = new TimeOnly(8, 0), EndTime = new TimeOnly(13, 15), SlotIntervalMinutes = 45, IsActive = true },
-            new WeeklyAvailability { Provider = providerTwo, DayOfWeek = DayOfWeek.Thursday, StartTime = new TimeOnly(14, 0), EndTime = new TimeOnly(18, 30), SlotIntervalMinutes = 45, IsActive = true },
-            new WeeklyAvailability { Provider = providerThree, DayOfWeek = DayOfWeek.Friday, StartTime = new TimeOnly(9, 0), EndTime = new TimeOnly(17, 0), SlotIntervalMinutes = 60, IsActive = true });
-
-        var demoPatient = new PatientProfile
+        var providerTwo = new Provider
         {
-            DocumentNumber = "1000000001",
-            FirstName = "Paciente",
-            LastName = "Demo",
-            Phone = "3001234567",
-            Gender = Gender.Female,
-            BirthDate = new DateOnly(1992, 5, 12),
-            Email = "paciente.demo@piedrazul.test",
-            ExternalUserId = "demo-patient",
-            IsGuest = false
+            Code = "MED002",
+            FirstName = "Andres",
+            LastName = "Vega",
+            Specialty = "Medicina General",
+            DefaultSlotIntervalMinutes = 60,
+            IsActive = true
         };
 
-        dbContext.PatientProfiles.Add(demoPatient);
+        dbContext.Providers.AddRange(providerOne, providerTwo);
 
-        var nextMonday = GetNextDate(DayOfWeek.Monday);
-        dbContext.Appointments.Add(new Appointment
+        dbContext.WeeklyAvailabilities.AddRange(
+            new WeeklyAvailability { Provider = providerOne, DayOfWeek = DayOfWeek.Friday, StartTime = new TimeOnly(9, 0), EndTime = new TimeOnly(17, 0), SlotIntervalMinutes = 60, IsActive = true },
+            new WeeklyAvailability { Provider = providerOne, DayOfWeek = DayOfWeek.Tuesday, StartTime = new TimeOnly(9, 0), EndTime = new TimeOnly(12, 0), SlotIntervalMinutes = 60, IsActive = true },
+            new WeeklyAvailability { Provider = providerTwo, DayOfWeek = DayOfWeek.Wednesday, StartTime = new TimeOnly(9, 0), EndTime = new TimeOnly(12, 0), SlotIntervalMinutes = 60, IsActive = true },
+            new WeeklyAvailability { Provider = providerTwo, DayOfWeek = DayOfWeek.Saturday, StartTime = new TimeOnly(8, 0), EndTime = new TimeOnly(11, 0), SlotIntervalMinutes = 60, IsActive = true });
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private static async Task RemoveRetiredDemoProvidersAsync(AppDbContext dbContext, CancellationToken cancellationToken)
+    {
+        var retiredCodes = new[] { "MED001", "TER001", "MED003" };
+        var retiredProviders = await dbContext.Providers
+            .Where(provider => retiredCodes.Contains(provider.Code))
+            .ToListAsync(cancellationToken);
+
+        if (retiredProviders.Count == 0)
         {
-            PatientProfile = demoPatient,
-            Provider = providerOne,
-            AppointmentDate = DateOnly.FromDateTime(nextMonday),
-            StartTime = new TimeOnly(8, 0),
-            EndTime = new TimeOnly(8, 30),
-            Channel = AppointmentChannel.Web,
-            Status = AppointmentStatus.Scheduled,
-            CreatedBy = "seed"
-        });
+            return;
+        }
 
+        var retiredProviderIds = retiredProviders.Select(provider => provider.Id).ToList();
+        var retiredAppointments = await dbContext.Appointments
+            .Where(appointment => retiredProviderIds.Contains(appointment.ProviderId))
+            .ToListAsync(cancellationToken);
+        var retiredAppointmentIds = retiredAppointments.Select(appointment => appointment.Id).ToList();
+
+        if (retiredAppointmentIds.Count > 0)
+        {
+            var retiredHistories = await dbContext.AppointmentHistories
+                .Where(history => retiredAppointmentIds.Contains(history.AppointmentId))
+                .ToListAsync(cancellationToken);
+            dbContext.AppointmentHistories.RemoveRange(retiredHistories);
+        }
+
+        var retiredAvailabilities = await dbContext.WeeklyAvailabilities
+            .Where(availability => retiredProviderIds.Contains(availability.ProviderId))
+            .ToListAsync(cancellationToken);
+
+        dbContext.WeeklyAvailabilities.RemoveRange(retiredAvailabilities);
+        dbContext.Appointments.RemoveRange(retiredAppointments);
+        dbContext.Providers.RemoveRange(retiredProviders);
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private static async Task RemoveRetiredDemoPatientsAsync(AppDbContext dbContext, CancellationToken cancellationToken)
+    {
+        var retiredDocuments = new[] { "1000000001" };
+        var retiredPatients = await dbContext.PatientProfiles
+            .Where(patient => retiredDocuments.Contains(patient.DocumentNumber) || patient.ExternalUserId == "demo-patient")
+            .ToListAsync(cancellationToken);
+
+        if (retiredPatients.Count == 0)
+        {
+            return;
+        }
+
+        var retiredPatientIds = retiredPatients.Select(patient => patient.Id).ToList();
+        var retiredAppointments = await dbContext.Appointments
+            .Where(appointment => retiredPatientIds.Contains(appointment.PatientProfileId))
+            .ToListAsync(cancellationToken);
+        var retiredAppointmentIds = retiredAppointments.Select(appointment => appointment.Id).ToList();
+
+        if (retiredAppointmentIds.Count > 0)
+        {
+            var retiredHistories = await dbContext.AppointmentHistories
+                .Where(history => retiredAppointmentIds.Contains(history.AppointmentId))
+                .ToListAsync(cancellationToken);
+            dbContext.AppointmentHistories.RemoveRange(retiredHistories);
+        }
+
+        dbContext.Appointments.RemoveRange(retiredAppointments);
+        dbContext.PatientProfiles.RemoveRange(retiredPatients);
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 

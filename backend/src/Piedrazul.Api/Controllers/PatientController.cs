@@ -10,11 +10,13 @@ namespace Piedrazul.Api.Controllers;
 public sealed class PatientController(
     IPatientService patientService,
     IAppointmentBookingService bookingService,
-    IAppointmentLifecycleService lifecycleService) : ApiControllerBase
+    IAppointmentLifecycleService lifecycleService,
+    IAppointmentQueryService queryService) : ApiControllerBase
 {
     private readonly IPatientService _patientService = patientService;
     private readonly IAppointmentBookingService _booking = bookingService;
     private readonly IAppointmentLifecycleService _lifecycle = lifecycleService;
+    private readonly IAppointmentQueryService _query = queryService;
 
     [HttpGet("profile")]
     public async Task<ActionResult<PatientProfileResponse>> GetMyProfile(CancellationToken cancellationToken)
@@ -35,6 +37,21 @@ public sealed class PatientController(
     {
         var result = await _patientService.GetMyAppointmentsAsync(User.GetSubject(), cancellationToken);
         return result.Succeeded && result.Data is not null ? Ok(result.Data) : FromFailure(result);
+    }
+
+
+    [HttpGet("appointments/{appointmentId:guid}/history")]
+    public async Task<ActionResult<IReadOnlyList<AppointmentHistoryResponse>>> GetMyAppointmentHistory(Guid appointmentId, CancellationToken cancellationToken)
+    {
+        var myAppointments = await _patientService.GetMyAppointmentsAsync(User.GetSubject(), cancellationToken);
+        if (!myAppointments.Succeeded || myAppointments.Data is null)
+            return FromFailure(myAppointments);
+
+        if (!myAppointments.Data.Any(appointment => appointment.Id == appointmentId))
+            return Conflict(new { errors = new[] { "No tienes permisos para consultar el historial de esta cita." } });
+
+        var history = await _query.GetAppointmentHistoryAsync(appointmentId, cancellationToken);
+        return Ok(history);
     }
 
     [HttpPost("appointments")]

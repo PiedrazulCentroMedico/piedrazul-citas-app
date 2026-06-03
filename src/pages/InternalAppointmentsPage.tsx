@@ -5,6 +5,7 @@ import { useAuth } from '../auth/AuthContext';
 import { PortalTabs } from '../components/PortalTabs';
 import type { AppointmentHistoryResponse, AppointmentListResponse, AppointmentResponse, AppointmentStatusValue, AvailabilitySlot, PatientLookup, ProviderSummary } from '../types';
 import { getLinkedProviderId, linkDefaultSeededDoctors } from '../utils/sessionStorage';
+import { demoProviderSummaries } from '../utils/demoProviders';
 import { formatDateLabel, hasSettingsAccess, isDoctorRole } from '../utils/validators';
 import { canTransitionStatus, hasAppointmentStarted, isTerminalStatus, translateStatusLabel } from '../utils/status';
 
@@ -227,6 +228,15 @@ function buildSimplePdf(providerName: string, specialty: string, label: string, 
   return new Blob([body], { type: 'application/pdf' });
 }
 
+
+function getAppointmentRowClass(status: string) {
+  const translated = translateStatusLabel(status);
+  if (translated === 'Cancelada') return 'appointment-row-cancelled';
+  if (translated === 'Completada') return 'appointment-row-completed';
+  if (translated === 'No asistió') return 'appointment-row-noshow';
+  return '';
+}
+
 function getDatesInRange(start: string, end: string) {
   const dates: string[] = [];
   const cursor = new Date(`${start}T00:00:00`);
@@ -260,12 +270,13 @@ export function InternalAppointmentsPage({ mode = 'list' }: { mode?: 'list' | 'r
   const [patientMatches, setPatientMatches] = useState<PatientLookup[]>([]);
   const [patientAppointments, setPatientAppointments] = useState<AppointmentResponse[]>([]);
   const [selectedReschedule, setSelectedReschedule] = useState<AppointmentResponse | null>(null);
-  const [rescheduleForm, setRescheduleForm] = useState({ date: toLocalDateInputValue(new Date()), startTime: '', reason: '' });
+  const [rescheduleForm, setRescheduleForm] = useState({ providerId: '', date: toLocalDateInputValue(new Date()), startTime: '', reason: '' });
   const [rescheduleSlots, setRescheduleSlots] = useState<AvailabilitySlot[]>([]);
   const [rescheduleLoading, setRescheduleLoading] = useState(false);
   const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
   const [historyByAppointment, setHistoryByAppointment] = useState<Record<string, AppointmentHistoryResponse[]>>({});
   const [historyLoadingId, setHistoryLoadingId] = useState<string | null>(null);
+  const [selectedPatientDocument, setSelectedPatientDocument] = useState('');
 
   const tabs = useMemo(() => {
     const base = [{ to: '/portal/interno/citas', label: isDoctor ? 'Mis citas' : 'Listado de citas' }];
@@ -281,17 +292,25 @@ export function InternalAppointmentsPage({ mode = 'list' }: { mode?: 'list' | 'r
 
   useEffect(() => {
     if (!session) return;
+
+    const hydrateProviders = (data: ProviderSummary[], showOfflineNotice = false) => {
+      linkDefaultSeededDoctors(data);
+      const refreshedLinkedProviderId = getLinkedProviderId(session.email);
+      const normalizedDisplayName = normalizeSpecialty(session.displayName ?? '');
+      const providerForDoctor = data.find((item) => item.id === refreshedLinkedProviderId)
+        ?? data.find((item) => normalizeSpecialty(item.fullName).includes(normalizedDisplayName) || normalizedDisplayName.includes(normalizeSpecialty(item.fullName)));
+      const filtered = isDoctor ? (providerForDoctor ? [providerForDoctor] : data) : data;
+      setProviders(filtered);
+      const specialties = buildUniqueSpecialties(filtered);
+      if (specialties[0]) setSelectedSpecialtyKey((current) => current || specialties[0].key);
+      if (providerForDoctor) setProviderId(providerForDoctor.id);
+      else if (filtered[0]) setProviderId(filtered[0].id);
+      if (showOfflineNotice) setMessage('No se pudo conectar con el backend. Se muestra información demo para no bloquear el portal médico. Reinicia el backend para consultar citas reales.');
+    };
+
     apiRequest<ProviderSummary[]>('/api/public/providers', session)
-      .then((data) => {
-        linkDefaultSeededDoctors(data);
-        const refreshedLinkedProviderId = getLinkedProviderId(session.email);
-        const filtered = isDoctor && refreshedLinkedProviderId ? data.filter((item) => item.id === refreshedLinkedProviderId) : data;
-        setProviders(filtered);
-        const specialties = buildUniqueSpecialties(filtered);
-        if (specialties[0]) setSelectedSpecialtyKey((current) => current || specialties[0].key);
-        if (filtered[0]) setProviderId(filtered[0].id);
-      })
-      .catch((error: Error) => setMessage(error.message));
+      .then((data) => hydrateProviders(data))
+      .catch(() => hydrateProviders(demoProviderSummaries, true));
   }, [isDoctor, session]);
 
   useEffect(() => {
@@ -308,6 +327,17 @@ export function InternalAppointmentsPage({ mode = 'list' }: { mode?: 'list' | 'r
   const selectedSpecialtyKeySafe = selectedSpecialtyKey || normalizeSpecialty(selectedProvider?.specialty ?? specialtyOptions[0]?.label ?? '');
   const filteredProviders = useMemo(() => providers.filter((provider) => normalizeSpecialty(provider.specialty) === selectedSpecialtyKeySafe), [providers, selectedSpecialtyKeySafe]);
   const dateOptions = useMemo(() => buildDateOptions(dateOffset), [dateOffset]);
+  const rescheduleProviderOptions = useMemo(() => selectedReschedule
+    ? providers.filter((provider) => normalizeSpecialty(provider.specialty) === normalizeSpecialty(selectedReschedule.specialty))
+    : [], [providers, selectedReschedule]);
+
+  const buildEmptyAppointmentResult = (dateValue: string): AppointmentListResponse => ({
+    providerName: selectedProvider?.fullName ?? session?.displayName ?? 'Profesional',
+    specialty: selectedProvider?.specialty ?? 'Especialidad',
+    appointmentDate: dateValue,
+    total: 0,
+    items: [],
+  });
 
   const handleSpecialtySelected = (specialtyKey: string) => {
     setSelectedSpecialtyKey(specialtyKey);
@@ -321,7 +351,7 @@ export function InternalAppointmentsPage({ mode = 'list' }: { mode?: 'list' | 'r
 
   const searchAppointments = async () => {
     if (!providerId) {
-      setMessage(isDoctor ? 'No encontramos el profesional asociado a tu cuenta.' : 'Selecciona un profesional.');
+      setMessage(isDoctor ? 'Estamos cargando la información asociada a tu cuenta. Intenta de nuevo en unos segundos.' : 'Selecciona un profesional.');
       return;
     }
     if (useDateRange && rangeStart > rangeEnd) {
@@ -337,8 +367,14 @@ export function InternalAppointmentsPage({ mode = 'list' }: { mode?: 'list' | 'r
       setResults(data);
       hydrateDraftStatuses(data.flatMap((item) => item.items));
     } catch (error) {
-      setResults([]);
-      setMessage(error instanceof Error ? error.message : 'No fue posible consultar las citas.');
+      const datesToSearch = useDateRange ? getDatesInRange(rangeStart, rangeEnd) : [date];
+      if (isDoctor) {
+        setResults(datesToSearch.map(buildEmptyAppointmentResult));
+        setMessage('No se pudo consultar el backend en este momento. Se deja tu panel cargado para que no quedes bloqueado; revisa que la API esté encendida y reinicia el backend si cambiaste CORS.');
+      } else {
+        setResults([]);
+        setMessage(error instanceof Error ? error.message : 'No fue posible conectar con el backend. Verifica que la API esté encendida en http://localhost:5184.');
+      }
     } finally {
       setLoading(false);
     }
@@ -346,7 +382,7 @@ export function InternalAppointmentsPage({ mode = 'list' }: { mode?: 'list' | 'r
 
   useEffect(() => {
     if (mode === 'list' && providerId) void searchAppointments();
-  }, [providerId, mode]);
+  }, [providerId, date, rangeStart, rangeEnd, useDateRange, mode]);
 
   useEffect(() => {
     if (!selectedReschedule || !rescheduleForm.date) {
@@ -354,10 +390,21 @@ export function InternalAppointmentsPage({ mode = 'list' }: { mode?: 'list' | 'r
       return;
     }
 
-    apiRequest<AvailabilitySlot[]>(`/api/public/providers/${selectedReschedule.providerId}/availability?date=${encodeURIComponent(rescheduleForm.date)}`, null)
+    apiRequest<AvailabilitySlot[]>(`/api/public/providers/${rescheduleForm.providerId || selectedReschedule.providerId}/availability?date=${encodeURIComponent(rescheduleForm.date)}`, null)
       .then((data) => setRescheduleSlots(data.filter((slot) => slot.available)))
       .catch(() => setRescheduleSlots([]));
-  }, [rescheduleForm.date, selectedReschedule]);
+  }, [rescheduleForm.date, rescheduleForm.providerId, selectedReschedule]);
+
+  const loadAppointmentsForPatient = async (documentNumber: string) => {
+    setMessage(null);
+    const appointments = await apiRequest<AppointmentResponse[]>(`/api/internal/appointments/by-document?document=${encodeURIComponent(documentNumber)}`, session);
+    setPatientAppointments(appointments);
+    setSelectedPatientDocument(documentNumber);
+    setSelectedReschedule(null);
+    if (appointments.length === 0) {
+      setMessage('Encontramos el paciente, pero no tiene citas programadas para reagendar.');
+    }
+  };
 
   const searchPatientAppointments = async () => {
     const term = patientSearch.trim();
@@ -369,12 +416,19 @@ export function InternalAppointmentsPage({ mode = 'list' }: { mode?: 'list' | 'r
     try {
       setRescheduleLoading(true);
       setMessage(null);
+      setSelectedPatientDocument('');
+      setPatientAppointments([]);
       const patients = await apiRequest<PatientLookup[]>(`/api/internal/patients/search?document=${encodeURIComponent(term)}`, session);
       setPatientMatches(patients);
-      const document = patients[0]?.documentNumber ?? term;
-      const appointments = await apiRequest<AppointmentResponse[]>(`/api/internal/appointments/by-document?document=${encodeURIComponent(document)}`, session);
-      setPatientAppointments(appointments);
-      setSelectedReschedule(null);
+      if (patients.length === 0) {
+        setMessage('No encontramos pacientes con ese documento o nombre. Revisa la búsqueda e intenta de nuevo.');
+        return;
+      }
+      if (patients.length === 1) {
+        await loadAppointmentsForPatient(patients[0].documentNumber);
+      } else {
+        setMessage('Selecciona una tarjeta de paciente para ver únicamente sus citas.');
+      }
     } catch (error) {
       setPatientMatches([]);
       setPatientAppointments([]);
@@ -386,7 +440,7 @@ export function InternalAppointmentsPage({ mode = 'list' }: { mode?: 'list' | 'r
 
   const startReschedule = (appointment: AppointmentResponse) => {
     setSelectedReschedule(appointment);
-    setRescheduleForm({ date: appointment.appointmentDate, startTime: '', reason: '' });
+    setRescheduleForm({ providerId: appointment.providerId, date: appointment.appointmentDate, startTime: '', reason: '' });
     setMessage(null);
   };
 
@@ -413,8 +467,8 @@ export function InternalAppointmentsPage({ mode = 'list' }: { mode?: 'list' | 'r
 
   const confirmInternalReschedule = async () => {
     if (!selectedReschedule) return;
-    if (!rescheduleForm.date || !rescheduleForm.startTime) {
-      setMessage('Selecciona la nueva fecha y una hora disponible.');
+    if (!rescheduleForm.providerId || !rescheduleForm.date || !rescheduleForm.startTime) {
+      setMessage('Selecciona profesional, nueva fecha y una hora disponible.');
       return;
     }
 
@@ -425,6 +479,7 @@ export function InternalAppointmentsPage({ mode = 'list' }: { mode?: 'list' | 'r
         method: 'PUT',
         body: {
           appointmentId: selectedReschedule.id,
+          newProviderId: rescheduleForm.providerId,
           newDate: rescheduleForm.date,
           newStartTime: rescheduleForm.startTime,
           reason: rescheduleForm.reason.trim() || 'Reagendamiento realizado desde el portal interno.',
@@ -566,15 +621,23 @@ export function InternalAppointmentsPage({ mode = 'list' }: { mode?: 'list' | 'r
             </div>
           )}
 
-          <label>
-            Profesional
-            <select value={providerId} onChange={(event) => setProviderId(event.target.value)} disabled={isDoctor}>
-              <option value="">Selecciona una opción</option>
-              {(isDoctor ? providers : filteredProviders).map((provider) => (
-                <option key={provider.id} value={provider.id}>{provider.fullName}</option>
-              ))}
-            </select>
-          </label>
+          {isDoctor ? (
+            <div className="readonly-professional-card">
+              <span>Profesional</span>
+              <strong>{selectedProvider?.fullName ?? session?.displayName ?? 'Profesional asociado'}</strong>
+              <small>{selectedProvider?.specialty ?? 'Información asociada a tu cuenta'}</small>
+            </div>
+          ) : (
+            <label>
+              Profesional
+              <select value={providerId} onChange={(event) => setProviderId(event.target.value)}>
+                <option value="">Selecciona una opción</option>
+                {filteredProviders.map((provider) => (
+                  <option key={provider.id} value={provider.id}>{provider.fullName}</option>
+                ))}
+              </select>
+            </label>
+          )}
 
           {!useDateRange ? (
             <div className="span-all stack-sm date-filter-area">
@@ -590,7 +653,7 @@ export function InternalAppointmentsPage({ mode = 'list' }: { mode?: 'list' | 'r
                 </div>
                 <button type="button" className="date-strip-arrow" onClick={() => setDateOffset((current) => current + 7)} aria-label="Ver semana siguiente">›</button>
               </div>
-              <p className="muted-text">Consultando citas para {formatDateLabel(date)}.</p>
+              <p className="muted-text">Las citas se actualizan automáticamente al cambiar la fecha.</p>
             </div>
           ) : (
             <>
@@ -606,7 +669,6 @@ export function InternalAppointmentsPage({ mode = 'list' }: { mode?: 'list' | 'r
           )}
 
           <div className="inline-actions end wrap">
-            <button type="button" className="button" onClick={() => void searchAppointments()}>Buscar</button>
             <button type="button" className="button button-secondary" onClick={() => void downloadPdf()}>Descargar PDF</button>
             <button type="button" className="button button-secondary" onClick={() => void printPdf()}>Imprimir PDF</button>
             <button type="button" className="button button-secondary" onClick={downloadCsv}>CSV</button>
@@ -637,10 +699,15 @@ export function InternalAppointmentsPage({ mode = 'list' }: { mode?: 'list' | 'r
           {patientMatches.length > 0 && (
             <div className="lookup-list compact-list">
               {patientMatches.map((patient) => (
-                <div key={patient.id} className="lookup-card">
+                <button
+                  type="button"
+                  key={patient.id}
+                  className={`lookup-card ${selectedPatientDocument === patient.documentNumber ? 'selected' : ''}`}
+                  onClick={() => void loadAppointmentsForPatient(patient.documentNumber)}
+                >
                   <strong>{patient.fullName}</strong>
                   <span>{patient.documentNumber} · {patient.phone}</span>
-                </div>
+                </button>
               ))}
             </div>
           )}
@@ -666,7 +733,7 @@ export function InternalAppointmentsPage({ mode = 'list' }: { mode?: 'list' | 'r
                     const isHistoryOpen = expandedHistoryId === appointment.id;
                     return (
                       <Fragment key={appointment.id}>
-                        <tr className={cancelled ? 'appointment-row-cancelled' : ''}>
+                        <tr className={getAppointmentRowClass(appointment.status)}>
                           <td>{formatDateLabel(appointment.appointmentDate)}</td>
                           <td>{appointment.startTime} - {appointment.endTime}</td>
                           <td>{appointment.patientFullName}</td>
@@ -677,7 +744,7 @@ export function InternalAppointmentsPage({ mode = 'list' }: { mode?: 'list' | 'r
                               <button type="button" className="button button-secondary" onClick={() => startReschedule(appointment)} disabled={cancelled}>
                                 {cancelled ? 'No reagendable' : 'Reagendar'}
                               </button>
-                              <button type="button" className="button button-ghost" onClick={() => void toggleAppointmentHistory(appointment.id)}>
+                              <button type="button" className="button button-history-green" onClick={() => void toggleAppointmentHistory(appointment.id)}>
                                 {isHistoryOpen ? 'Ocultar historial' : 'Ver historial'}
                               </button>
                             </div>
@@ -723,9 +790,27 @@ export function InternalAppointmentsPage({ mode = 'list' }: { mode?: 'list' | 'r
               <strong>Reagendando cita de {selectedReschedule.patientFullName}</strong>
               <div className="form-grid internal-filter-grid">
                 <label>
-                  Nueva fecha
-                  <input type="date" value={rescheduleForm.date} onChange={(event) => setRescheduleForm((current) => ({ ...current, date: event.target.value, startTime: '' }))} />
+                  Profesional de la misma especialidad
+                  <select value={rescheduleForm.providerId} onChange={(event) => setRescheduleForm((current) => ({ ...current, providerId: event.target.value, startTime: '' }))}>
+                    {rescheduleProviderOptions.map((provider) => (
+                      <option key={provider.id} value={provider.id}>{provider.fullName} · {provider.specialty}</option>
+                    ))}
+                  </select>
                 </label>
+                <div className="span-all stack-sm">
+                  <span className="field-label">Nueva fecha</span>
+                  <div className="date-strip" aria-label="Seleccionar nueva fecha de reagendamiento">
+                    <button type="button" className="date-strip-arrow" onClick={() => setDateOffset((current) => Math.max(0, current - 7))} disabled={dateOffset === 0}>‹</button>
+                    <div className="date-strip-days">
+                      {dateOptions.map((dateOption) => (
+                        <button key={dateOption.value} type="button" className={`date-option ${rescheduleForm.date === dateOption.value ? 'selected' : ''}`} onClick={() => setRescheduleForm((current) => ({ ...current, date: dateOption.value, startTime: '' }))}>
+                          {dateOption.label.split(' ').map((part) => (<span key={part}>{part}</span>))}
+                        </button>
+                      ))}
+                    </div>
+                    <button type="button" className="date-strip-arrow" onClick={() => setDateOffset((current) => current + 7)}>›</button>
+                  </div>
+                </div>
                 <label>
                   Hora disponible
                   <select value={rescheduleForm.startTime} onChange={(event) => setRescheduleForm((current) => ({ ...current, startTime: event.target.value }))}>
@@ -798,7 +883,7 @@ export function InternalAppointmentsPage({ mode = 'list' }: { mode?: 'list' | 'r
                     const selectedStatus = draftStatuses[appointment.id] ?? (translatedStatus as AppointmentStatusValue);
                     const canSaveStatus = canTransitionStatus(appointment.status, selectedStatus, appointment.appointmentDate, appointment.startTime);
                     return (
-                      <tr key={appointment.id} className={translatedStatus === 'Cancelada' ? 'appointment-row-cancelled' : ''}>
+                      <tr key={appointment.id} className={getAppointmentRowClass(appointment.status)}>
                         {useDateRange && <td>{formatDateLabel(appointment.appointmentDate)}</td>}
                         <td>{appointment.startTime} - {appointment.endTime}</td>
                         <td>{appointment.patientFullName}</td>
@@ -807,7 +892,7 @@ export function InternalAppointmentsPage({ mode = 'list' }: { mode?: 'list' | 'r
                         <td>{appointment.channel}</td>
                         <td>{translatedStatus}</td>
                         <td>
-                          <div className="inline-actions wrap">
+                          <div className="inline-actions wrap appointment-actions">
                             <label htmlFor={`status-${appointment.id}`} className="sr-only">Cambiar estado de la cita</label>
                             <select
                               id={`status-${appointment.id}`}

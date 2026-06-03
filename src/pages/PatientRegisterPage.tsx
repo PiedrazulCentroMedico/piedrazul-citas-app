@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import loginIllustration from '../assets/login-session.png';
 import { saveRegisterDraft } from '../utils/sessionStorage';
 import { sanitizeNameInput, validateStrongPassword } from '../utils/validators';
 
@@ -94,6 +95,7 @@ export function PatientRegisterPage() {
         <div className="stack-sm auth-copy">
           <span className="eyebrow">Nuevo usuario</span>
           <h1>Crea tu cuenta</h1>
+          <div className="login-illustration-inline" aria-hidden="true"><img src={loginIllustration} alt="" /></div>
           <p className="muted-text">
             La cédula será tu dato de acceso. El correo se completa después y será opcional.
           </p>
@@ -102,7 +104,7 @@ export function PatientRegisterPage() {
         <form className="auth-form" onSubmit={handleSubmit}>
           <div className="form-grid">
             <label>
-              Cédula
+              Cédula <span className="required-star">*</span>
               <input
                 className={fieldErrors.documentNumber ? 'input-error' : ''}
                 inputMode="numeric"
@@ -114,7 +116,7 @@ export function PatientRegisterPage() {
             </label>
 
             <label>
-              Nombres
+              Nombres <span className="required-star">*</span>
               <input
                 className={fieldErrors.firstName ? 'input-error' : ''}
                 value={form.firstName}
@@ -125,7 +127,7 @@ export function PatientRegisterPage() {
             </label>
 
             <label>
-              Apellidos
+              Apellidos <span className="required-star">*</span>
               <input
                 className={fieldErrors.lastName ? 'input-error' : ''}
                 value={form.lastName}
@@ -137,7 +139,7 @@ export function PatientRegisterPage() {
           </div>
 
           <label>
-            Contraseña
+            Contraseña <span className="required-star">*</span>
             <input
               className={fieldErrors.password ? 'input-error' : ''}
               type={showPassword ? 'text' : 'password'}
@@ -160,7 +162,7 @@ export function PatientRegisterPage() {
           </label>
 
           <label>
-            Confirmar contraseña
+            Confirmar contraseña <span className="required-star">*</span>
             <input
               className={fieldErrors.confirmPassword ? 'input-error' : ''}
               type={showConfirmPassword ? 'text' : 'password'}

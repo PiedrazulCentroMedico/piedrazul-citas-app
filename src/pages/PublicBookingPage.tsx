@@ -2,8 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { apiRequest } from '../api/http';
 import { useAuth } from '../auth/AuthContext';
-import type { AppointmentResponse, AvailabilitySlot, CaptchaChallenge, Gender, GenderOption, PatientProfile, PatientPublicLookup, ProviderSummary, PublicAppointmentPayload } from '../types';
-import { formatDateLabel, sanitizeNameInput, validatePatientForm } from '../utils/validators';
+import { WhatsAppButton } from '../components/WhatsAppButton';
+import type { AppointmentResponse, AvailabilitySlot, CaptchaChallenge, Gender, GenderOption, PatientProfile, PatientPublicLookup, ProviderSummary, PublicAppointmentPayload, SystemSettings } from '../types';
+import { formatDateLabel, getOlderAdultBirthDateWarning, sanitizeNameInput, validatePatientForm } from '../utils/validators';
 import { translateStatusLabel } from '../utils/status';
 
 function toMinutes(value: string) {
@@ -39,17 +40,23 @@ function formatShortDay(date: Date) {
   }).format(date);
 }
 
-function buildDateOptions(offset: number) {
+function buildDateOptions(offset: number, maxSelectableDays: number) {
   const today = new Date();
   const startDate = addDays(today, offset);
 
   return Array.from({ length: 7 }, (_, index) => {
+    const absoluteOffset = offset + index;
     const date = addDays(startDate, index);
     return {
       value: toLocalDateInputValue(date),
       label: formatShortDay(date),
+      isOverflowLimit: absoluteOffset > maxSelectableDays,
     };
   });
+}
+
+function clampDateOffset(nextOffset: number, weeksAheadBooking: number) {
+  return Math.min(Math.max(0, nextOffset), weeksAheadBooking * 7);
 }
 
 function createCaptchaChallenge(): CaptchaChallenge {
@@ -121,6 +128,7 @@ export function PublicBookingPage() {
   const [form, setForm] = useState(initialForm);
   const [dateOffset, setDateOffset] = useState(0);
   const [providers, setProviders] = useState<ProviderSummary[]>([]);
+  const [settings, setSettings] = useState<SystemSettings>({ weeksAheadBooking: 6, timeZoneId: 'America/Bogota' });
   const [selectedSpecialtyKey, setSelectedSpecialtyKey] = useState('');
   const [slots, setSlots] = useState<AvailabilitySlot[]>([]);
   const [message, setMessage] = useState<string | null>(null);
@@ -135,12 +143,17 @@ export function PublicBookingPage() {
   const [reprogramTarget, setReprogramTarget] = useState<AppointmentResponse | null>(null);
   const [registeredPatientModal, setRegisteredPatientModal] = useState<PatientPublicLookup | null>(null);
   const [documentNotice, setDocumentNotice] = useState<string | null>(null);
+  const [weekLimitModal, setWeekLimitModal] = useState(false);
   const patientDataRef = useRef<HTMLElement | null>(null);
   const providerStepRef = useRef<HTMLElement | null>(null);
   const scheduleStepRef = useRef<HTMLElement | null>(null);
   const antiBotStepRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
+    apiRequest<SystemSettings>('/api/public/settings', null)
+      .then(setSettings)
+      .catch(() => undefined);
+
     apiRequest<ProviderSummary[]>('/api/public/providers', null)
       .then((data) => {
         setProviders(data);
@@ -237,8 +250,11 @@ export function PublicBookingPage() {
     () => providers.filter((provider) => normalizeSpecialty(provider.specialty) === selectedSpecialtyKeySafe),
     [providers, selectedSpecialtyKeySafe],
   );
-  const dateOptions = useMemo(() => buildDateOptions(dateOffset), [dateOffset]);
+  const maxSelectableDays = settings.weeksAheadBooking * 7;
+  const displayUntilWarningDays = maxSelectableDays + 7;
+  const dateOptions = useMemo(() => buildDateOptions(dateOffset, maxSelectableDays), [dateOffset, maxSelectableDays]);
   const mustCreateAccount = false;
+  const birthDateWarning = useMemo(() => getOlderAdultBirthDateWarning(form.birthDate), [form.birthDate]);
 
   const visibleSlots = useMemo(() => {
     if (!form.appointmentDate) return slots;
@@ -281,6 +297,12 @@ export function PublicBookingPage() {
   }, [form.appointmentDate, slots.length, visibleSlots.length]);
 
   const handleChange = (field: keyof typeof form, value: string) => {
+    if (field === 'appointmentDate' && daysBetweenToday(value) > maxSelectableDays) {
+      setWeekLimitModal(true);
+      setMessage(`Solo se pueden reservar citas dentro de las próximas ${settings.weeksAheadBooking} semanas para este profesional.`);
+      return;
+    }
+
     setForm((current) => ({
       ...current,
       [field]: value,
@@ -399,6 +421,10 @@ export function PublicBookingPage() {
   };
 
   const handleSpecialtySelected = (specialtyKey: string) => {
+    if (reprogramTarget && specialtyKey !== normalizeSpecialty(reprogramTarget.specialty)) {
+      setMessage('Para reprogramar debes mantener la misma especialidad. Si necesitas otra, cancela la cita y agenda una nueva.');
+      return;
+    }
     setSelectedSpecialtyKey(specialtyKey);
     const firstProvider = providers.find((provider) => normalizeSpecialty(provider.specialty) === specialtyKey);
     if (firstProvider) {
@@ -449,6 +475,7 @@ export function PublicBookingPage() {
     if (!form.providerId) errors.push('Debes seleccionar un médico o terapista.');
     if (!form.appointmentDate) errors.push('Debes seleccionar una fecha.');
     if (!form.startTime) errors.push('Debes seleccionar una franja horaria.');
+    if (form.appointmentDate && daysBetweenToday(form.appointmentDate) > maxSelectableDays) errors.push(`Solo se pueden reservar citas dentro de las próximas ${settings.weeksAheadBooking} semanas.`);
     if (reprogramTarget && form.appointmentDate === reprogramTarget.appointmentDate && form.startTime === reprogramTarget.startTime) {
       errors.push('Elige una fecha u hora diferente a la cita actual para poder reprogramar.');
     }
@@ -482,6 +509,7 @@ export function PublicBookingPage() {
           method: 'PUT',
           body: {
             appointmentId: reprogramTarget.id,
+            newProviderId: form.providerId,
             newDate: form.appointmentDate,
             newStartTime: form.startTime,
             reason: 'Reprogramación solicitada por paciente desde el portal web.',
@@ -522,12 +550,12 @@ export function PublicBookingPage() {
           <div className="stack-sm">
             <span className="eyebrow">Reserva de citas</span>
             <h1>{reprogramTarget ? 'Reprograma tu cita' : 'Agenda tu cita en línea'}</h1>
-            <p className="muted-text">{reprogramTarget ? 'Selecciona una nueva fecha y una nueva franja disponible. No se creará una cita adicional.' : 'Primero verifica la cédula, luego completa los datos y confirma tu reserva.'}</p>
+            <p className="muted-text">{reprogramTarget ? 'Puedes cambiar el profesional, la fecha y la hora dentro de la misma especialidad. Si necesitas otra especialidad, primero cancela esta cita y luego agenda una nueva.' : 'Primero verifica la cédula, luego completa los datos y confirma tu reserva.'}</p>
             {reprogramTarget && (
               <div className="reprogram-current-card">
                 <strong>Cita actual</strong>
                 <span>{reprogramTarget.providerName} · {formatDateLabel(reprogramTarget.appointmentDate)} · {reprogramTarget.startTime} - {reprogramTarget.endTime}</span>
-                <small>El profesional queda bloqueado igual que en el portal interno. Solo debes escoger nueva fecha y hora.</small>
+                <small>Puedes conservar este profesional o seleccionar otro de la misma especialidad antes de elegir la nueva fecha y hora.</small>
               </div>
             )}
           </div>
@@ -540,7 +568,7 @@ export function PublicBookingPage() {
             <h2>Paso 1. Verifica tu cédula</h2>
             <div className="form-grid id-check-grid">
               <label>
-                Número de cédula
+                Número de cédula <span className="required-star">*</span>
                 <small className="field-helper">Escribe solo números, sin puntos ni espacios.</small>
                 <input inputMode="numeric" maxLength={20} value={form.documentNumber} onChange={(event) => handleChange('documentNumber', event.target.value.replace(/\D/g, ''))} />
               </label>
@@ -580,11 +608,11 @@ export function PublicBookingPage() {
           {isPatientSession ? (
             <>
               <div className="patient-confirm-row">
-                <div><span>Documento</span><strong>{form.documentNumber || 'No registrado'}</strong></div>
+                <div><span>Documento <span className="required-star">*</span></span><strong>{form.documentNumber || 'No registrado'}</strong></div>
                 <div><span>Nombre</span><strong>{`${form.firstName} ${form.lastName}`.trim() || 'No registrado'}</strong></div>
-                <div><span>Celular</span><strong>{form.phone || 'No registrado'}</strong></div>
-                <div><span>Género</span><strong>{form.gender === 'Male' ? 'Hombre' : form.gender === 'Female' ? 'Mujer' : form.gender === 'Other' ? 'Otro' : 'No registrado'}</strong></div>
-                <div><span>Fecha de nacimiento</span><strong>{form.birthDate || 'No registrada'}</strong></div>
+                <div><span>Celular <span className="required-star">*</span></span><strong>{form.phone || 'No registrado'}</strong></div>
+                <div><span>Género <span className="required-star">*</span></span><strong>{form.gender === 'Male' ? 'Hombre' : form.gender === 'Female' ? 'Mujer' : form.gender === 'Other' ? 'Otro' : 'No registrado'}</strong></div>
+                <div><span>Fecha de nacimiento <span className="required-star">*</span></span><strong>{form.birthDate || 'No registrada'}</strong></div>
                 <div><span>Correo</span><strong>{cleanOptionalEmail(form.email) || 'No registrado'}</strong></div>
               </div>
               <div className="feedback-card warning">Si algún dato está mal, modifícalo desde <Link to="/portal/paciente/perfil"><strong>editar perfil</strong></Link> antes de confirmar la reserva.</div>
@@ -598,28 +626,28 @@ export function PublicBookingPage() {
             )}
             <div className="form-grid">
               <label>
-                Documento
+                Documento <span className="required-star">*</span>
                 <small className="field-helper">Este dato se verifica primero y queda protegido.</small>
                 <input inputMode="numeric" maxLength={20} value={form.documentNumber} disabled onChange={(event) => handleChange('documentNumber', event.target.value.replace(/\D/g, ''))} />
               </label>
               <label>
-                Nombres
+                Nombres <span className="required-star">*</span>
                 <small className="field-helper">Escribe tus nombres como aparecen en el documento.</small>
                 <input maxLength={80} value={form.firstName} disabled={!documentVerified} onChange={(event) => handleChange('firstName', sanitizeNameInput(event.target.value))} />
               </label>
               <label>
-                Apellidos
+                Apellidos <span className="required-star">*</span>
                 <small className="field-helper">Escribe tus apellidos completos.</small>
                 <input maxLength={80} value={form.lastName} disabled={!documentVerified} onChange={(event) => handleChange('lastName', sanitizeNameInput(event.target.value))} />
               </label>
               <label>
-                Celular
+                Celular <span className="required-star">*</span>
                 <small className="field-helper">Usa un número activo para que Piedrazul pueda contactarte.</small>
                 <input inputMode="numeric" maxLength={15} value={form.phone} disabled={!documentVerified} onChange={(event) => handleChange('phone', event.target.value.replace(/\D/g, ''))} />
                 {patientLookup?.maskedPhone && <small className="muted-text">Registrado: {patientLookup.maskedPhone}</small>}
               </label>
               <label>
-                Género
+                Género <span className="required-star">*</span>
                 <select value={form.gender} disabled={!documentVerified} onChange={(event) => handleChange('gender', event.target.value)}>
                   <option value="">Seleccionar género</option>
                   <option value="Female">Mujer</option>
@@ -628,9 +656,10 @@ export function PublicBookingPage() {
                 </select>
               </label>
               <label>
-                Fecha de nacimiento
+                Fecha de nacimiento <span className="required-star">*</span>
                 <input type="date" value={form.birthDate} disabled={!documentVerified} onChange={(event) => handleChange('birthDate', event.target.value)} />
                 {patientLookup?.birthYear && <small className="muted-text">Año registrado: {patientLookup.birthYear}</small>}
+                {birthDateWarning && <small className="field-warning">{birthDateWarning}</small>}
               </label>
               <label className="span-two">
                 Correo electrónico (opcional)
@@ -649,7 +678,7 @@ export function PublicBookingPage() {
         <section ref={providerStepRef} className="section-card stack-md">
           <h2>{isPatientSession ? 'Paso 2. Selecciona el profesional' : 'Paso 3. Selecciona el profesional'}</h2>
           <p className="muted-text">Primero elige la especialidad y luego el profesional que atenderá la cita.</p>
-          {reprogramTarget && <div className="selection-help">Estás reprogramando una cita existente. Para evitar errores, se conserva el mismo profesional.</div>}
+          {reprogramTarget && <div className="selection-help">Estás reprogramando una cita existente. Puedes conservar el profesional actual o seleccionar otro disponible.</div>}
 
           <div className="selection-step-label">1. Selecciona especialidad</div>
           <div className="specialty-choice-grid" role="group" aria-label="Seleccionar especialidad">
@@ -659,7 +688,6 @@ export function PublicBookingPage() {
                 type="button"
                 className={`choice-card ${selectedSpecialtyKeySafe === specialty.key ? 'selected' : ''}`}
                 onClick={() => handleSpecialtySelected(specialty.key)}
-                disabled={Boolean(reprogramTarget)}
               >
                 <span className="choice-check">{selectedSpecialtyKeySafe === specialty.key ? '✓' : ''}</span>
                 <strong>{specialty.label}</strong>
@@ -675,7 +703,6 @@ export function PublicBookingPage() {
                 type="button"
                 className={`provider-choice-card ${form.providerId === provider.id ? 'selected' : ''}`}
                 onClick={() => handleProviderSelected(provider.id)}
-                disabled={Boolean(reprogramTarget)}
               >
                 <strong>{provider.fullName}</strong>
                 <span>{provider.specialty}</span>
@@ -692,12 +719,6 @@ export function PublicBookingPage() {
         <section ref={scheduleStepRef} className="section-card stack-md">
           <h2>{isPatientSession ? 'Paso 3. Selecciona fecha y hora' : 'Paso 4. Selecciona fecha y hora'}</h2>
           <p className="muted-text">Selecciona primero el día de atención; luego marca una hora disponible para confirmar la cita.</p>
-          <div className="color-legend" aria-label="Guía de colores y estados">
-            <span><i className="legend-box legend-available" /> Disponible</span>
-            <span><i className="legend-box legend-selected" /> Seleccionado</span>
-            <span><i className="legend-box legend-unavailable" /> No disponible</span>
-          </div>
-
           <div className="date-strip" aria-label="Seleccionar fecha de la cita">
             <button
               type="button"
@@ -714,10 +735,11 @@ export function PublicBookingPage() {
                 <button
                   key={dateOption.value}
                   type="button"
-                  className={`date-option ${form.appointmentDate === dateOption.value ? 'selected' : ''}`}
-                  onClick={() => handleChange('appointmentDate', dateOption.value)}
+                  className={`date-option ${form.appointmentDate === dateOption.value ? 'selected' : ''} ${dateOption.isOverflowLimit ? 'limit-blocked' : ''}`}
+                  onClick={() => dateOption.isOverflowLimit ? setWeekLimitModal(true) : handleChange('appointmentDate', dateOption.value)}
                 >
                   <strong>{dateOption.label}</strong>
+                  {dateOption.isOverflowLimit && <small>Límite máximo</small>}
                 </button>
               ))}
             </div>
@@ -725,7 +747,11 @@ export function PublicBookingPage() {
             <button
               type="button"
               className="date-strip-arrow"
-              onClick={() => setDateOffset((current) => current + 7)}
+              onClick={() => {
+                const next = dateOffset + 7;
+                if (next > displayUntilWarningDays) { setWeekLimitModal(true); return; }
+                setDateOffset(clampDateOffset(next, settings.weeksAheadBooking + 1));
+              }}
               aria-label="Ver más fechas"
             >
               ›
@@ -768,7 +794,7 @@ export function PublicBookingPage() {
               </div>
               <div className="form-grid internal-filter-grid">
                 <label>
-                  ¿Cuánto es {captcha.left} + {captcha.right}?
+                  ¿Cuánto es {captcha.left} + {captcha.right}? <span className="required-star">*</span>
                   <input inputMode="numeric" value={captcha.answer} onChange={(event) => setCaptcha((current) => ({ ...current, answer: event.target.value.replace(/\D/g, '') }))} />
                 </label>
               </div>
@@ -785,7 +811,7 @@ export function PublicBookingPage() {
               </div>
               <div className="summary-grid">
                 <div><span>Paciente:</span><strong>{reservationSummary.patient}</strong></div>
-                <div><span>Documento:</span><strong>{reservationSummary.document}</strong></div>
+                <div><span>Documento <span className="required-star">*</span>:</span><strong>{reservationSummary.document}</strong></div>
                 <div><span>Profesional:</span><strong>{reservationSummary.professional}</strong></div>
                 <div><span>Especialidad:</span><strong>{reservationSummary.specialty}</strong></div>
                 <div><span>Fecha:</span><strong>{reservationSummary.date}</strong></div>
@@ -810,7 +836,7 @@ export function PublicBookingPage() {
             <h2>Preguntas frecuentes</h2>
             <p className="muted-text">Resuelve dudas rápidas sin salir del proceso.</p>
           </div>
-          <a className="button button-secondary" href="https://wa.me/573001234567" target="_blank" rel="noreferrer">Ayuda por WhatsApp</a>
+          <WhatsAppButton label="Ayuda por WhatsApp" />
         </div>
         <div className="faq-grid">
           <details>
@@ -886,6 +912,17 @@ export function PublicBookingPage() {
               {isPatientSession ? 'Ir a mis citas' : 'Ir al inicio'}
             </button>
           </div>
+        </section>
+      </div>
+    )}
+
+    {weekLimitModal && (
+      <div className="modal-backdrop" role="dialog" aria-modal="true">
+        <section className="modal-card compact-modal stack-md">
+          <span className="eyebrow eyebrow-warning">Límite de agenda</span>
+          <h2>Este profesional solo permite reservar hasta {settings.weeksAheadBooking} semanas adelante</h2>
+          <p className="muted-text">La última semana visible es solo informativa y queda bloqueada para evitar reservas fuera del rango configurado.</p>
+          <div className="inline-actions end"><button type="button" className="button" onClick={() => setWeekLimitModal(false)}>Entendido</button></div>
         </section>
       </div>
     )}

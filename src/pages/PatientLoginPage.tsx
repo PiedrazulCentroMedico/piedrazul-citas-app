@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import loginIllustration from '../assets/login-session.png';
 
 export function PatientLoginPage() {
   const navigate = useNavigate();
@@ -12,14 +13,15 @@ export function PatientLoginPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const requestedPath = (location.state as { from?: { pathname?: string } } | undefined)?.from?.pathname;
-  const redirectTo = requestedPath?.startsWith('/portal/paciente') ? requestedPath : '/portal/paciente';
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setMessage(null);
 
-    if (!documentNumber.trim() || !password.trim()) {
+    const cleanDocument = documentNumber.trim().replace(/\D/g, '');
+    const cleanPassword = password.trim();
+
+    if (!cleanDocument || !cleanPassword) {
       setMessage('Ingresa tu número de cédula y tu contraseña para continuar.');
       return;
     }
@@ -31,8 +33,8 @@ export function PatientLoginPage() {
         return;
       }
 
-      await loginWithCredentials(documentNumber.replace(/\D/g, ''), password, 'patient');
-      navigate(redirectTo, { replace: true });
+      await loginWithCredentials(cleanDocument, cleanPassword, 'patient');
+      navigate('/portal/paciente', { replace: true });
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'No fue posible iniciar sesión.');
     } finally {
@@ -46,17 +48,19 @@ export function PatientLoginPage() {
         <div className="stack-sm auth-copy">
           <span className="eyebrow">Acceso de pacientes</span>
           <h1>Inicia sesión en tu cuenta</h1>
-          <p className="muted-text">Ahora el acceso del paciente se realiza con número de cédula y contraseña.</p>
+          <div className="login-illustration-inline" aria-hidden="true">
+            <img src={loginIllustration} alt="" />
+          </div>
         </div>
 
         <form className="auth-form" onSubmit={handleSubmit}>
           <label>
-            Número de cédula
+            Número de cédula <span className="required-star">*</span>
             <input inputMode="numeric" autoComplete="username" value={documentNumber} onChange={(event) => setDocumentNumber(event.target.value.replace(/\D/g, ''))} />
           </label>
           <label>
-            Contraseña
-            <input type={showPassword ? 'text' : 'password'} autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} />
+            Contraseña <span className="required-star">*</span>
+            <input type={showPassword ? 'text' : 'password'} autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} onBlur={(event) => setPassword(event.target.value.trim())} />
           </label>
           <label className="checkbox-inline">
             <input type="checkbox" checked={showPassword} onChange={(event) => setShowPassword(event.target.checked)} />

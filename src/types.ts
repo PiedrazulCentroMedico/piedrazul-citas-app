@@ -177,6 +177,7 @@ export interface ProviderSchedulePayload {
 }
 
 export interface CreateDoctorPayload {
+  documentNumber: string;
   firstName: string;
   lastName: string;
   specialty: string;

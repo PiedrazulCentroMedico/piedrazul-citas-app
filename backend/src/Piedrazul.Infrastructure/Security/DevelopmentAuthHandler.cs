@@ -9,10 +9,10 @@ namespace Piedrazul.Infrastructure.Security;
 
 public sealed class DevelopmentAuthOptions
 {
-    public string DefaultSubject { get; set; } = "demo-patient";
-    public string DefaultName { get; set; } = "Paciente Demo";
-    public string? DefaultEmail { get; set; } = "paciente.demo@piedrazul.test";
-    public string[] DefaultRoles { get; set; } = ["Patient"];
+    public string DefaultSubject { get; set; } = "staff-admin@piedrazul.local";
+    public string DefaultName { get; set; } = "Administrador Piedrazul";
+    public string? DefaultEmail { get; set; } = "admin@piedrazul.local";
+    public string[] DefaultRoles { get; set; } = ["Admin"];
 }
 
 public sealed class DevelopmentAuthHandler(

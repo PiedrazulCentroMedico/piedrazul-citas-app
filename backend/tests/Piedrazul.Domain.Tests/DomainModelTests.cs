@@ -11,17 +11,17 @@ public sealed class DomainModelTests
     [Fact]
     public void PatientProfile_FullName_ShouldCombineFirstAndLastName()
     {
-        var patient = new PatientProfile { FirstName = "Ana", LastName = "Gomez" };
+        var patient = new PatientProfile { FirstName = "María", LastName = "Gomez" };
 
-        Assert.Equal("Ana Gomez", patient.FullName);
+        Assert.Equal("María Gomez", patient.FullName);
     }
 
     [Fact]
     public void PatientProfile_FullName_ShouldReturnFirstNameOnly_WhenLastNameIsEmpty()
     {
-        var patient = new PatientProfile { FirstName = "Ana", LastName = "" };
+        var patient = new PatientProfile { FirstName = "María", LastName = "" };
 
-        Assert.Equal("Ana", patient.FullName);
+        Assert.Equal("María", patient.FullName);
     }
 
     [Fact]
@@ -45,17 +45,17 @@ public sealed class DomainModelTests
     [Fact]
     public void Provider_DisplayName_ShouldCombineFirstAndLastName()
     {
-        var provider = new Provider { FirstName = "Carlos", LastName = "Martínez" };
+        var provider = new Provider { FirstName = "Pedro", LastName = "Martínez" };
 
-        Assert.Equal("Carlos Martínez", provider.DisplayName);
+        Assert.Equal("Pedro Martínez", provider.DisplayName);
     }
 
     [Fact]
     public void Provider_DisplayName_ShouldReturnFirstNameOnly_WhenLastNameIsEmpty()
     {
-        var provider = new Provider { FirstName = "Carlos", LastName = "" };
+        var provider = new Provider { FirstName = "Pedro", LastName = "" };
 
-        Assert.Equal("Carlos", provider.DisplayName);
+        Assert.Equal("Pedro", provider.DisplayName);
     }
 
     // ── ScheduleValidator ─────────────────────────────────────────────────────

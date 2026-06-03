@@ -83,7 +83,7 @@ public sealed class ValidationTests
     [Fact]
     public void ValidateBasicPatientData_ShouldRejectInvalidDocumentAndPhone()
     {
-        var errors = PatientInputValidator.ValidateBasicPatientData("ABC", "Ana", "Gomez", "30A", "correo");
+        var errors = PatientInputValidator.ValidateBasicPatientData("ABC", "María", "Gomez", "30A", "correo");
 
         Assert.Contains(errors, error => error.Contains("documento", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(errors, error => error.Contains("celular", StringComparison.OrdinalIgnoreCase));
@@ -94,7 +94,7 @@ public sealed class ValidationTests
     public void ValidateBasicPatientData_ShouldReturnNoErrors_ForValidInput()
     {
         var errors = PatientInputValidator.ValidateBasicPatientData(
-            "12345678", "Ana", "Gomez", "3001234567", "ana@ejemplo.com");
+            "12345678", "María", "Gomez", "3001234567", "ana@ejemplo.com");
 
         Assert.Empty(errors);
     }
@@ -104,7 +104,7 @@ public sealed class ValidationTests
     {
         // 4 dígitos — mínimo es 5
         var errors = PatientInputValidator.ValidateBasicPatientData(
-            "1234", "Ana", "Gomez", "3001234567", null);
+            "1234", "María", "Gomez", "3001234567", null);
 
         Assert.Contains(errors, e => e.Contains("documento", StringComparison.OrdinalIgnoreCase));
     }
@@ -114,7 +114,7 @@ public sealed class ValidationTests
     {
         // 21 dígitos — máximo es 20
         var errors = PatientInputValidator.ValidateBasicPatientData(
-            "123456789012345678901", "Ana", "Gomez", "3001234567", null);
+            "123456789012345678901", "María", "Gomez", "3001234567", null);
 
         Assert.Contains(errors, e => e.Contains("documento", StringComparison.OrdinalIgnoreCase));
     }
@@ -124,7 +124,7 @@ public sealed class ValidationTests
     {
         // 6 dígitos — mínimo es 7
         var errors = PatientInputValidator.ValidateBasicPatientData(
-            "12345678", "Ana", "Gomez", "123456", null);
+            "12345678", "María", "Gomez", "123456", null);
 
         Assert.Contains(errors, e => e.Contains("celular", StringComparison.OrdinalIgnoreCase));
     }
@@ -133,7 +133,7 @@ public sealed class ValidationTests
     public void ValidateBasicPatientData_ShouldAcceptNullEmail()
     {
         var errors = PatientInputValidator.ValidateBasicPatientData(
-            "12345678", "Ana", "Gomez", "3001234567", null);
+            "12345678", "María", "Gomez", "3001234567", null);
 
         Assert.DoesNotContain(errors, e => e.Contains("correo", StringComparison.OrdinalIgnoreCase));
     }
@@ -142,7 +142,7 @@ public sealed class ValidationTests
     public void ValidateBasicPatientData_ShouldRejectEmailWithoutAtSymbol()
     {
         var errors = PatientInputValidator.ValidateBasicPatientData(
-            "12345678", "Ana", "Gomez", "3001234567", "sinarroba.com");
+            "12345678", "María", "Gomez", "3001234567", "sinarroba.com");
 
         Assert.Contains(errors, e => e.Contains("correo", StringComparison.OrdinalIgnoreCase));
     }
@@ -151,7 +151,7 @@ public sealed class ValidationTests
     public void ValidateBasicPatientData_ShouldRejectFirstNameWithNumbers()
     {
         var errors = PatientInputValidator.ValidateBasicPatientData(
-            "12345678", "Ana123", "Gomez", "3001234567", null);
+            "12345678", "María123", "Gomez", "3001234567", null);
 
         Assert.Contains(errors, e => e.Contains("nombres", StringComparison.OrdinalIgnoreCase));
     }
@@ -161,9 +161,9 @@ public sealed class ValidationTests
     [Fact]
     public void Normalize_ShouldTrimAndCollapseSpaces()
     {
-        var normalized = PatientInputValidator.Normalize("  Ana    Maria  ");
+        var normalized = PatientInputValidator.Normalize("  María    Maria  ");
 
-        Assert.Equal("Ana Maria", normalized);
+        Assert.Equal("María Maria", normalized);
     }
 
     [Fact]
@@ -177,8 +177,8 @@ public sealed class ValidationTests
     [Fact]
     public void Normalize_ShouldReturnSameString_WhenAlreadyClean()
     {
-        var normalized = PatientInputValidator.Normalize("Ana Maria");
+        var normalized = PatientInputValidator.Normalize("María Maria");
 
-        Assert.Equal("Ana Maria", normalized);
+        Assert.Equal("María Maria", normalized);
     }
 }

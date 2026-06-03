@@ -1,6 +1,15 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 
+
+function getRoleHomePath(roles: string[], currentPath: string) {
+  if (roles.includes('Patient')) return '/portal/paciente';
+  if (roles.includes('Scheduler')) return '/portal/interno/nueva-cita';
+  if (roles.includes('Doctor')) return '/portal/interno/citas';
+  if (roles.includes('Admin')) return '/portal/interno/citas';
+  return currentPath.startsWith('/portal/interno') ? '/portal/interno/login' : '/';
+}
+
 interface ProtectedRouteProps {
   children: React.ReactNode;
   roles?: string[];
@@ -20,7 +29,7 @@ export function ProtectedRoute({ children, roles = [], redirectTo = '/' }: Prote
   }
 
   if (roles.length > 0 && !roles.some((role) => session.roles.includes(role))) {
-    return <Navigate to="/" replace />;
+    return <Navigate to={getRoleHomePath(session.roles, location.pathname)} replace />;
   }
 
   return <>{children}</>;

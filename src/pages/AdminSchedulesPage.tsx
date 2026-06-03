@@ -5,6 +5,7 @@ import { useAuth } from '../auth/AuthContext';
 import { PortalTabs } from '../components/PortalTabs';
 import type { CreateDoctorPayload, ProviderSchedule, ProviderSchedulePayload, SystemSettings, WeeklyAvailability } from '../types';
 import { linkDoctorToProvider, getLinkedProviderId, linkDefaultSeededDoctors } from '../utils/sessionStorage';
+import { demoProviderSchedules, demoSystemSettings } from '../utils/demoProviders';
 import { hasSettingsAccess, isDoctorRole, sanitizeNameInput, validateAvailabilityEntries, validateStrongPassword } from '../utils/validators';
 
 const dayOptions = [
@@ -45,6 +46,7 @@ const emptyAvailability = (): WeeklyAvailability => ({
 });
 
 const emptyDoctorForm = (): CreateDoctorPayload => ({
+  documentNumber: '',
   firstName: '',
   lastName: '',
   specialty: specialtyOptions[0],
@@ -56,6 +58,10 @@ const emptyDoctorForm = (): CreateDoctorPayload => ({
 function normalizeDayOfWeek(value: number | string) {
   if (typeof value === 'number') return value;
   return dayMap[value] ?? 1;
+}
+
+function normalizeText(value: string) {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
 }
 
 function normalizeSchedule(schedule: ProviderSchedule): ProviderSchedule {
@@ -106,23 +112,30 @@ export function AdminSchedulesPage() {
   useEffect(() => {
     if (!session) return;
 
+    const hydrateSchedules = (settingsData: SystemSettings, schedulesData: ProviderSchedule[], showOfflineNotice = false) => {
+      setSettings(settingsData);
+      const normalizedSchedules = schedulesData.map(normalizeSchedule);
+      linkDefaultSeededDoctors(normalizedSchedules);
+      setSchedules(normalizedSchedules);
+      if (isDoctor) {
+        const linked = getLinkedProviderId(session.email);
+        const normalizedDisplayName = normalizeText(session.displayName ?? '');
+        const mine = normalizedSchedules.find((item) => item.providerId === linked)
+          ?? normalizedSchedules.find((item) => normalizeText(item.providerName).includes(normalizedDisplayName) || normalizedDisplayName.includes(normalizeText(item.providerName)));
+        if (mine) setSelectedProviderId(mine.providerId);
+        else if (normalizedSchedules[0]) setSelectedProviderId(normalizedSchedules[0].providerId);
+      } else if (normalizedSchedules[0]) {
+        setSelectedProviderId(normalizedSchedules[0].providerId);
+      }
+      if (showOfflineNotice && !isDoctor) setProviderMessage('No se pudo conectar con el backend. Se muestra configuración demo para no bloquear el flujo. Reinicia la API para guardar cambios reales.');
+    };
+
     Promise.all([
       apiRequest<SystemSettings>('/api/admin/settings', session),
       apiRequest<ProviderSchedule[]>('/api/admin/provider-schedules', session),
     ])
-      .then(([settingsData, schedulesData]) => {
-        setSettings(settingsData);
-        const normalizedSchedules = schedulesData.map(normalizeSchedule);
-        linkDefaultSeededDoctors(normalizedSchedules);
-        setSchedules(normalizedSchedules);
-        if (isDoctor) {
-          const linked = getLinkedProviderId(session.email);
-          if (linked) setSelectedProviderId(linked);
-        } else if (normalizedSchedules[0]) {
-          setSelectedProviderId(normalizedSchedules[0].providerId);
-        }
-      })
-      .catch((error: Error) => setProviderMessage(error.message));
+      .then(([settingsData, schedulesData]) => hydrateSchedules(settingsData, schedulesData))
+      .catch(() => hydrateSchedules(demoSystemSettings, demoProviderSchedules, true));
   }, [isDoctor, session]);
 
   const selectedProvider = useMemo(
@@ -251,8 +264,18 @@ export function AdminSchedulesPage() {
     }
   };
 
+  const normalizeCorporateEmail = (value: string) => {
+    const base = value.trim().toLowerCase();
+    if (!base) return '';
+    if (base.endsWith('@piedrazul.local')) return base;
+    const localPart = base.includes('@') ? base.split('@')[0] : base;
+    return `${localPart}@piedrazul.local`;
+  };
+
   const createDoctor = async () => {
+    const corporateEmail = normalizeCorporateEmail(doctorForm.email);
     const nextDoctorErrors = {
+      documentNumber: !/^\d{5,20}$/.test(doctorForm.documentNumber.trim()),
       firstName: doctorForm.firstName.trim().length < 2,
       lastName: doctorForm.lastName.trim().length < 2,
       specialty: doctorForm.specialty.trim().length < 2,
@@ -261,13 +284,13 @@ export function AdminSchedulesPage() {
     };
     setDoctorErrors(nextDoctorErrors);
     if (Object.values(nextDoctorErrors).some(Boolean)) {
-      setDoctorMessage('Completa nombres, apellidos, especialidad, correo y contraseña para crear el perfil médico.');
+      setDoctorMessage('Completa cédula, nombres, apellidos, especialidad, correo y contraseña para crear el perfil médico.');
       return;
     }
 
-    if (!/^\S+@\S+\.\S+$/.test(doctorForm.email.trim())) {
+    if (!corporateEmail.endsWith('@piedrazul.local')) {
       setDoctorErrors((current) => ({ ...current, email: true }));
-      setDoctorMessage('Ingresa un correo corporativo válido.');
+      setDoctorMessage('El correo del personal interno debe terminar en @piedrazul.local.');
       return;
     }
 
@@ -292,9 +315,10 @@ export function AdminSchedulesPage() {
         body: schedulePayload,
       }));
       setSchedules((current) => [...current, provider]);
-      linkDoctorToProvider(doctorForm.email.trim(), provider.providerId);
+      linkDoctorToProvider(corporateEmail, provider.providerId);
       createInternalDemoAccount({
-        email: doctorForm.email.trim(),
+        documentNumber: doctorForm.documentNumber.trim(),
+        email: corporateEmail,
         password: doctorForm.password,
         displayName: `${doctorForm.firstName.trim()} ${doctorForm.lastName.trim()}`,
         roles: ['Doctor'],
@@ -353,15 +377,19 @@ export function AdminSchedulesPage() {
           <p className="muted-text">Al crear el perfil, el sistema te llevará automáticamente a configurar sus franjas de atención.</p>
           <div className="form-grid">
             <label>
-              Nombres
+              Cédula <span className="required-star">*</span>
+              <input className={doctorErrors.documentNumber ? 'input-error' : ''} inputMode="numeric" value={doctorForm.documentNumber} onChange={(event) => { setDoctorForm((current) => ({ ...current, documentNumber: event.target.value.replace(/\D/g, '') })); setDoctorErrors((current) => ({ ...current, documentNumber: false })); }} />
+            </label>
+            <label>
+              Nombres <span className="required-star">*</span>
               <input className={doctorErrors.firstName ? 'input-error' : ''} value={doctorForm.firstName} onChange={(event) => { setDoctorForm((current) => ({ ...current, firstName: sanitizeNameInput(event.target.value) })); setDoctorErrors((current) => ({ ...current, firstName: false })); }} />
             </label>
             <label>
-              Apellidos
+              Apellidos <span className="required-star">*</span>
               <input className={doctorErrors.lastName ? 'input-error' : ''} value={doctorForm.lastName} onChange={(event) => { setDoctorForm((current) => ({ ...current, lastName: sanitizeNameInput(event.target.value) })); setDoctorErrors((current) => ({ ...current, lastName: false })); }} />
             </label>
             <label>
-              Especialidad
+              Especialidad <span className="required-star">*</span>
               <select className={doctorErrors.specialty ? 'input-error' : ''} value={doctorForm.specialty} onChange={(event) => { setDoctorForm((current) => ({ ...current, specialty: event.target.value })); setDoctorErrors((current) => ({ ...current, specialty: false })); }}>
                 {specialtyOptions.map((specialty) => (
                   <option key={specialty} value={specialty}>{specialty}</option>
@@ -369,11 +397,11 @@ export function AdminSchedulesPage() {
               </select>
             </label>
             <label>
-              Correo corporativo
-              <input className={doctorErrors.email ? 'input-error' : ''} type="email" value={doctorForm.email} onChange={(event) => { setDoctorForm((current) => ({ ...current, email: event.target.value })); setDoctorErrors((current) => ({ ...current, email: false })); }} />
+              Correo corporativo <span className="required-star">*</span>
+              <input className={doctorErrors.email ? 'input-error' : ''} type="email" value={doctorForm.email} placeholder="usuario@piedrazul.local" onBlur={(event) => setDoctorForm((current) => ({ ...current, email: normalizeCorporateEmail(event.target.value) }))} onChange={(event) => { setDoctorForm((current) => ({ ...current, email: event.target.value })); setDoctorErrors((current) => ({ ...current, email: false })); }} />
             </label>
             <label className="span-two">
-              Contraseña inicial
+              Contraseña inicial <span className="required-star">*</span>
               <div className="password-input-row">
                 <input className={doctorErrors.password ? 'input-error' : ''} type={showDoctorPassword ? 'text' : 'password'} value={doctorForm.password} onChange={(event) => { setDoctorForm((current) => ({ ...current, password: event.target.value })); setDoctorErrors((current) => ({ ...current, password: false })); }} />
                 <button type="button" className="button button-secondary password-toggle-button" onClick={() => setShowDoctorPassword((current) => !current)}>
@@ -396,18 +424,26 @@ export function AdminSchedulesPage() {
         <h2>{isDoctor ? 'Mi disponibilidad' : 'Disponibilidad por profesional'}</h2>
         {!isDoctor && <p className="muted-text">Aquí editas el profesional, las semanas habilitadas y las franjas semanales en un solo lugar.</p>}
         <div className="form-grid internal-filter-grid">
-          <label>
-            Profesional
-            <select value={selectedProviderId} onChange={(event) => setSelectedProviderId(event.target.value)} disabled={isDoctor}>
-              <option value="">Selecciona una opción</option>
-              {schedules.map((schedule) => (
-                <option key={schedule.providerId} value={schedule.providerId}>{schedule.providerName} - {schedule.specialty}</option>
-              ))}
-            </select>
-          </label>
+          {isDoctor ? (
+            <div className="readonly-professional-card">
+              <span>Profesional asociado a tu cuenta</span>
+              <strong>{selectedProvider?.providerName ?? session?.displayName ?? 'Profesional'}</strong>
+              <small>{selectedProvider?.specialty ?? 'Sin especialidad cargada'}</small>
+            </div>
+          ) : (
+            <label>
+              Profesional <span className="required-star">*</span>
+              <select value={selectedProviderId} onChange={(event) => setSelectedProviderId(event.target.value)}>
+                <option value="">Selecciona una opción</option>
+                {schedules.map((schedule) => (
+                  <option key={schedule.providerId} value={schedule.providerId}>{schedule.providerName} - {schedule.specialty}</option>
+                ))}
+              </select>
+            </label>
+          )}
           {!isDoctor && (
             <label>
-              Semanas habilitadas
+              Semanas habilitadas <span className="required-star">*</span>
               <input type="number" min={1} max={24} className={settingsErrors.weeksAheadBooking ? 'input-error' : ''} value={settings.weeksAheadBooking} onChange={(event) => { setSettings((current) => ({ ...current, weeksAheadBooking: Number(event.target.value) })); setSettingsErrors({}); }} />
             </label>
           )}
@@ -443,21 +479,21 @@ export function AdminSchedulesPage() {
               {providerForm.weeklyAvailabilities.map((availability, index) => (
                 <div key={`${index}-${availability.startTime}-${availability.endTime}`} className={`availability-row ${providerErrors.weeklyAvailabilities ? 'input-error' : ''}`}>
                   <label>
-                    Día
+                    Día <span className="required-star">*</span>
                     <select value={availability.dayOfWeek} onChange={(event) => updateAvailability(index, 'dayOfWeek', Number(event.target.value))}>
                       {dayOptions.map((day) => (<option key={day.value} value={day.value}>{day.label}</option>))}
                     </select>
                   </label>
                   <label>
-                    Inicio
+                    Inicio <span className="required-star">*</span>
                     <input type="time" value={availability.startTime} onChange={(event) => updateAvailability(index, 'startTime', event.target.value)} />
                   </label>
                   <label>
-                    Fin
+                    Fin <span className="required-star">*</span>
                     <input type="time" value={availability.endTime} onChange={(event) => updateAvailability(index, 'endTime', event.target.value)} />
                   </label>
                   <label>
-                    Intervalo
+                    Intervalo <span className="required-star">*</span>
                     <input type="number" min={10} max={120} value={availability.slotIntervalMinutes} onChange={(event) => updateAvailability(index, 'slotIntervalMinutes', Number(event.target.value))} />
                   </label>
                   <label className="checkbox-field">
@@ -469,7 +505,7 @@ export function AdminSchedulesPage() {
               ))}
             </div>
 
-            {providerMessage && <div className={`feedback-card ${providerMessage.includes('correctamente') || providerMessage.includes('Perfil creado') ? 'success' : 'error'}`}>{providerMessage}</div>}
+            {providerMessage && <div className={`feedback-card ${providerMessage.includes('correctamente') || providerMessage.includes('Perfil creado') || providerMessage.includes('demo') ? 'success' : 'error'}`}>{providerMessage}</div>}
 
             <div className="inline-actions between wrap">
               <button type="button" className="button button-secondary" onClick={() => setProviderForm((current) => ({ ...current, weeklyAvailabilities: [...current.weeklyAvailabilities, emptyAvailability()] }))}>Agregar franja</button>

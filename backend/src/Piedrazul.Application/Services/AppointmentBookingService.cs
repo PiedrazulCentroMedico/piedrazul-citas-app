@@ -199,7 +199,7 @@ public sealed class AppointmentBookingService(
 
     private static IReadOnlyList<string> ValidatePublicRequest(PublicAppointmentRequest request)
     {
-        var errors = PatientInputValidator.ValidateBasicPatientData(request.DocumentNumber, request.FirstName, request.LastName, request.Phone, request.Email).ToList();
+        var errors = PatientInputValidator.ValidateBasicPatientData(request.DocumentNumber, request.FirstName, request.LastName, request.Phone, request.Email, request.BirthDate).ToList();
         if (request.ProviderId == Guid.Empty) errors.Add("Debes seleccionar un médico o terapista.");
         if (request.AppointmentDate == default) errors.Add("Debes seleccionar una fecha válida.");
         if (string.IsNullOrWhiteSpace(request.StartTime)) errors.Add("Debes seleccionar una franja horaria.");
@@ -208,7 +208,7 @@ public sealed class AppointmentBookingService(
 
     private static IReadOnlyList<string> ValidateInternalRequest(InternalCreateAppointmentRequest request)
     {
-        var errors = PatientInputValidator.ValidateBasicPatientData(request.DocumentNumber, request.FirstName, request.LastName, request.Phone, request.Email).ToList();
+        var errors = PatientInputValidator.ValidateBasicPatientData(request.DocumentNumber, request.FirstName, request.LastName, request.Phone, request.Email, request.BirthDate).ToList();
         if (request.ProviderId == Guid.Empty) errors.Add("Debes seleccionar un médico o terapista.");
         if (request.AppointmentDate == default) errors.Add("Debes seleccionar una fecha válida.");
         if (string.IsNullOrWhiteSpace(request.StartTime)) errors.Add("Debes seleccionar una franja horaria.");

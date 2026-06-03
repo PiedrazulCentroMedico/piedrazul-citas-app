@@ -5,7 +5,7 @@ import { useAuth } from '../auth/AuthContext';
 import { PortalTabs } from '../components/PortalTabs';
 import type { Gender, GenderOption, PatientProfile } from '../types';
 import { clearRegisterDraft, readRegisterDraft } from '../utils/sessionStorage';
-import { sanitizeNameInput, validatePatientForm, validateStrongPassword } from '../utils/validators';
+import { getOlderAdultBirthDateWarning, sanitizeNameInput, validatePatientForm, validateStrongPassword } from '../utils/validators';
 
 const tabs = [
   { to: '/portal/paciente', label: 'Mis citas' },
@@ -44,6 +44,7 @@ export function PatientProfilePage() {
   const [passwordFieldErrors, setPasswordFieldErrors] = useState<Record<string, boolean>>({});
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const birthDateWarning = getOlderAdultBirthDateWarning(form.birthDate);
 
   useEffect(() => {
     const draft = readRegisterDraft();
@@ -103,6 +104,7 @@ export function PatientProfilePage() {
     if (!/^\d{10}$/.test(form.phone.trim())) nextErrors.phone = true;
     if (!form.gender) nextErrors.gender = true;
     if (form.email.trim() && !/^\S+@\S+\.\S+$/.test(form.email.trim())) nextErrors.email = true;
+    if (!form.birthDate) nextErrors.birthDate = true;
     if (form.birthDate) {
       const birth = new Date(form.birthDate);
       const today = new Date();
@@ -230,24 +232,24 @@ export function PatientProfilePage() {
       <form className="section-card stack-md" onSubmit={handleSubmit} noValidate>
         <div className="form-grid">
           <label>
-            Documento
+            Documento <span className="required-star">*</span>
             <input className={fieldErrors.documentNumber ? 'input-error' : ''} inputMode="numeric" maxLength={20} value={form.documentNumber} disabled readOnly />
             <small className="helper-text">La cédula solo puede cambiarla el administrador.</small>
           </label>
           <label>
-            Nombres
+            Nombres <span className="required-star">*</span>
             <input className={fieldErrors.firstName ? 'input-error' : ''} maxLength={80} value={form.firstName} onChange={(event) => handleChange('firstName', sanitizeNameInput(event.target.value))} />
           </label>
           <label>
-            Apellidos
+            Apellidos <span className="required-star">*</span>
             <input className={fieldErrors.lastName ? 'input-error' : ''} maxLength={80} value={form.lastName} onChange={(event) => handleChange('lastName', sanitizeNameInput(event.target.value))} />
           </label>
           <label>
-            Celular
+            Celular <span className="required-star">*</span>
             <input className={fieldErrors.phone ? 'input-error' : ''} inputMode="numeric" maxLength={15} value={form.phone} onChange={(event) => handleChange('phone', event.target.value.replace(/\D/g, ''))} />
           </label>
           <label>
-            Género
+            Género <span className="required-star">*</span>
             <select className={fieldErrors.gender ? 'input-error' : ''} value={form.gender} onChange={(event) => handleChange('gender', event.target.value)}>
               <option value="">Seleccionar género</option>
               <option value="Female">Mujer</option>
@@ -256,8 +258,9 @@ export function PatientProfilePage() {
             </select>
           </label>
           <label>
-            Fecha de nacimiento
+            Fecha de nacimiento <span className="required-star">*</span>
             <input className={fieldErrors.birthDate ? 'input-error' : ''} type="date" value={form.birthDate} onChange={(event) => handleChange('birthDate', event.target.value)} />
+            {birthDateWarning && <small className="field-warning">{birthDateWarning}</small>}
           </label>
           <label className="span-two">
             Correo electrónico
@@ -288,24 +291,24 @@ export function PatientProfilePage() {
           <button type="button" className="button button-secondary" onClick={() => void generateProfilePasswordCode()} disabled={passwordSubmitting}>
             {passwordSubmitting ? 'Procesando...' : 'Generar código temporal'}
           </button>
-          {passwordCode && <span className="summary-badge">Código temporal: {passwordCode}</span>}
+          {passwordCode && <span className="summary-badge">Código temporal <span className="required-star">*</span>: {passwordCode}</span>}
         </div>
 
         <div className="form-grid">
           <label>
-            Código temporal
+            Código temporal <span className="required-star">*</span>
             <input className={passwordFieldErrors.code ? 'input-error' : ''} value={passwordForm.code} onChange={(event) => handlePasswordFieldChange('code', event.target.value)} />
             <small className="helper-text">Si el código no coincide, se marcará este campo para que puedas corregirlo.</small>
           </label>
           <label>
-            Nueva contraseña
+            Nueva contraseña <span className="required-star">*</span>
             <div className="password-input-row">
               <input className={passwordFieldErrors.password ? 'input-error' : ''} type={showPassword ? 'text' : 'password'} value={passwordForm.password} onChange={(event) => handlePasswordFieldChange('password', event.target.value)} />
               <button type="button" className="button button-secondary password-toggle-button" onClick={() => setShowPassword((current) => !current)}>{showPassword ? 'Ocultar' : 'Mostrar'}</button>
             </div>
           </label>
           <label>
-            Confirmar contraseña
+            Confirmar contraseña <span className="required-star">*</span>
             <div className="password-input-row">
               <input className={passwordFieldErrors.confirmPassword ? 'input-error' : ''} type={showConfirmPassword ? 'text' : 'password'} value={passwordForm.confirmPassword} onChange={(event) => handlePasswordFieldChange('confirmPassword', event.target.value)} />
               <button type="button" className="button button-secondary password-toggle-button" onClick={() => setShowConfirmPassword((current) => !current)}>{showConfirmPassword ? 'Ocultar' : 'Mostrar'}</button>

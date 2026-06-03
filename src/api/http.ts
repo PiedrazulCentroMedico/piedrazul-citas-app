@@ -6,6 +6,24 @@ interface RequestOptions extends Omit<RequestInit, 'body'> {
   responseType?: 'json' | 'blob';
 }
 
+function trimTextValues<T>(value: T): T {
+  if (typeof value === 'string') {
+    return value.trim() as T;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => trimTextValues(item)) as T;
+  }
+
+  if (value && typeof value === 'object' && !(value instanceof FormData) && !(value instanceof Blob) && !(value instanceof Date)) {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([key, item]) => [key, trimTextValues(item)]),
+    ) as T;
+  }
+
+  return value;
+}
+
 function buildHeaders(session: SessionUser | null, headers?: HeadersInit) {
   const builtHeaders = new Headers(headers);
 
@@ -74,14 +92,19 @@ export async function apiRequest<T>(path: string, session: SessionUser | null, o
   let resolvedBody = body;
   if (body && typeof body === 'object' && !(body instanceof FormData) && !(body instanceof Blob)) {
     headers.set('Content-Type', 'application/json');
-    resolvedBody = JSON.stringify(body);
+    resolvedBody = JSON.stringify(trimTextValues(body));
   }
 
-  const response = await fetch(`${appConfig.apiBaseUrl}${path}`, {
-    ...rest,
-    body: resolvedBody as BodyInit | null | undefined,
-    headers,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${appConfig.apiBaseUrl}${path}`, {
+      ...rest,
+      body: resolvedBody as BodyInit | null | undefined,
+      headers,
+    });
+  } catch {
+    throw new Error('No fue posible conectar con el backend. Verifica que la API esté encendida en http://localhost:5184 y reinicia el backend si cambiaste CORS.');
+  }
 
   if (!response.ok) {
     throw new Error(await parseError(response));

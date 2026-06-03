@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using Piedrazul.Api.Configuration;
 using Piedrazul.Application;
+using Piedrazul.Application.Abstractions.Repositories;
+using Piedrazul.Domain;
 
 namespace Piedrazul.Api.Controllers;
 
@@ -10,11 +12,13 @@ public sealed class PublicController(
     IAvailabilityService availabilityService,
     IAppointmentBookingService bookingService,
     IPatientLookupService patientLookupService,
+    ISystemSettingsRepository settingsRepository,
     IOptions<CenterOptions> centerOptions) : ApiControllerBase
 {
     private readonly IAvailabilityService _availability = availabilityService;
     private readonly IAppointmentBookingService _booking = bookingService;
     private readonly IPatientLookupService _patientLookup = patientLookupService;
+    private readonly ISystemSettingsRepository _settings = settingsRepository;
     private readonly CenterOptions _centerOptions = centerOptions.Value;
 
     [HttpGet("info")]
@@ -26,6 +30,16 @@ public sealed class PublicController(
             _centerOptions.Phone,
             _centerOptions.AttentionHours,
             _centerOptions.About));
+
+
+    [HttpGet("settings")]
+    public async Task<ActionResult<SystemSettingsResponse>> GetPublicSettings(CancellationToken cancellationToken)
+    {
+        var settings = await _settings.GetAsync(cancellationToken)
+            ?? new SystemSetting { WeeksAheadBooking = 6, TimeZoneId = "America/Bogota" };
+
+        return Ok(new SystemSettingsResponse(settings.WeeksAheadBooking, settings.TimeZoneId));
+    }
 
     [HttpGet("providers")]
     public async Task<ActionResult<IReadOnlyList<ProviderSummaryResponse>>> GetProviders(CancellationToken cancellationToken)

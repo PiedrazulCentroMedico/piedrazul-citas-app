@@ -220,7 +220,7 @@ public sealed class AppointmentServiceTests
             AppointmentDate = DateOnly.FromDateTime(DateTime.Today.AddDays(1)),
             StartTime = "08:00",
             DocumentNumber = "12345678",
-            FirstName = "Ana",
+            FirstName = "María",
             LastName = "Gomez",
             Phone = "3001234567"
         };
@@ -242,7 +242,7 @@ public sealed class AppointmentServiceTests
             AppointmentDate = default,              // ← inválido
             StartTime = "08:00",
             DocumentNumber = "12345678",
-            FirstName = "Ana",
+            FirstName = "María",
             LastName = "Gomez",
             Phone = "3001234567"
         };
@@ -264,7 +264,7 @@ public sealed class AppointmentServiceTests
             AppointmentDate = DateOnly.FromDateTime(DateTime.Today.AddDays(1)),
             StartTime = "",                         // ← inválido
             DocumentNumber = "12345678",
-            FirstName = "Ana",
+            FirstName = "María",
             LastName = "Gomez",
             Phone = "3001234567"
         };
@@ -286,7 +286,7 @@ public sealed class AppointmentServiceTests
             AppointmentDate = DateOnly.FromDateTime(DateTime.Today.AddDays(1)),
             StartTime = "08:00",
             DocumentNumber = "ABC123",              // ← inválido
-            FirstName = "Ana",
+            FirstName = "María",
             LastName = "Gomez",
             Phone = "3001234567"
         };
@@ -332,7 +332,7 @@ public sealed class AppointmentServiceTests
             AppointmentDate = DateOnly.FromDateTime(DateTime.Today.AddDays(1)),
             StartTime = "08:00",
             DocumentNumber = "12345678",
-            FirstName = "Ana",
+            FirstName = "María",
             LastName = "Gomez",
             Phone = "3001234567"
         };
@@ -355,7 +355,7 @@ public sealed class AppointmentServiceTests
             AppointmentDate = DateOnly.FromDateTime(DateTime.Today.AddDays(1)),
             StartTime = "08:00",
             DocumentNumber = "12345678",
-            FirstName = "Ana",
+            FirstName = "María",
             LastName = "Gomez",
             Phone = "3001234567",
             Notes = new string('A', 501)           // ← supera 500 caracteres
@@ -503,7 +503,7 @@ public sealed class AppointmentServiceTests
     {
         var provider = new Provider
         {
-            FirstName = "Ana", LastName = "Gomez",
+            FirstName = "María", LastName = "Gomez",
             Specialty = "Fisioterapia", DefaultSlotIntervalMinutes = 30
         };
         var fakeRepo = new FakeAppointmentRepo { ProviderToReturn = provider };

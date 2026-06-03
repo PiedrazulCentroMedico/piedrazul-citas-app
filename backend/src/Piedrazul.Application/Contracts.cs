@@ -139,6 +139,7 @@ public sealed record AppointmentListResponse(
 public sealed record RescheduleAppointmentRequest
 {
     public Guid AppointmentId { get; init; }
+    public Guid? NewProviderId { get; init; }
     public DateOnly NewDate { get; init; }
     public string NewStartTime { get; init; } = string.Empty;
     public string? Reason { get; init; }
