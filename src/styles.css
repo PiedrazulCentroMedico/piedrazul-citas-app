@@ -6152,3 +6152,314 @@ html[data-theme='dark'] body.accessibility-contrast .clock-seconds {
   text-shadow: none !important;
 }
 
+
+/* ==============================
+   Ajustes v24: header responsive paciente/interno y contraste final
+   ============================== */
+.topbar {
+  width: 100% !important;
+}
+
+.topbar-inner {
+  width: min(100% - 1.5rem, 1480px) !important;
+  grid-template-columns: auto minmax(0, 1fr) auto !important;
+  gap: clamp(0.45rem, 1vw, 0.9rem) !important;
+  padding: 0.55rem 0 0.8rem !important;
+}
+
+.brand {
+  min-width: 155px !important;
+}
+
+.brand-mark {
+  width: 42px !important;
+  height: 42px !important;
+}
+
+.main-nav {
+  justify-content: center !important;
+  gap: 0.45rem !important;
+  overflow: visible !important;
+}
+
+.main-nav a,
+.header-actions .button {
+  min-height: 42px !important;
+  padding: 0.52rem 0.78rem !important;
+  border-radius: 12px !important;
+  font-size: 0.88rem !important;
+  max-width: 100% !important;
+}
+
+.welcome-chip {
+  max-width: 230px !important;
+  min-height: 48px !important;
+  padding: 0.58rem 0.78rem !important;
+  overflow: hidden !important;
+}
+
+.welcome-chip strong,
+.welcome-chip span {
+  display: block !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.theme-switch {
+  flex: 0 0 auto !important;
+}
+
+.main-nav a.active::after,
+.header-actions .button.active::after {
+  bottom: -1.05rem !important;
+  font-size: 0.58rem !important;
+  padding: 0.14rem 0.4rem !important;
+  background: #ffffff !important;
+  color: #0756b3 !important;
+  border: 1px solid rgba(59, 130, 246, 0.55) !important;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.14) !important;
+}
+
+html[data-theme='dark'] .main-nav a.active::after,
+html[data-theme='dark'] .header-actions .button.active::after {
+  background: #f8fafc !important;
+  color: #0756b3 !important;
+  border-color: #bfdbfe !important;
+  box-shadow: 0 8px 18px rgba(96, 165, 250, 0.2) !important;
+}
+
+/* Evita que campos y tarjetas pierdan contraste en modo oscuro */
+html[data-theme='dark'] input:disabled,
+html[data-theme='dark'] select:disabled,
+html[data-theme='dark'] textarea:disabled,
+html[data-theme='dark'] .summary-grid > div,
+html[data-theme='dark'] .readonly-field,
+html[data-theme='dark'] .value-card,
+html[data-theme='dark'] .choice-card,
+html[data-theme='dark'] .provider-choice-card,
+html[data-theme='dark'] .booking-step,
+html[data-theme='dark'] .step-card,
+html[data-theme='dark'] .form-section,
+html[data-theme='dark'] .info-panel {
+  background: #101827 !important;
+  color: #f8fafc !important;
+  border-color: rgba(148, 163, 184, 0.55) !important;
+}
+
+html[data-theme='dark'] input:disabled,
+html[data-theme='dark'] select:disabled,
+html[data-theme='dark'] textarea:disabled {
+  -webkit-text-fill-color: #dbeafe !important;
+  opacity: 1 !important;
+}
+
+html[data-theme='dark'] .summary-grid span,
+html[data-theme='dark'] .choice-card span,
+html[data-theme='dark'] .provider-choice-card span,
+html[data-theme='dark'] .step-pill,
+html[data-theme='dark'] .field-helper,
+html[data-theme='dark'] .helper-text {
+  color: #cbd5e1 !important;
+}
+
+html[data-theme='dark'] .step-pill,
+html[data-theme='dark'] .eyebrow,
+html[data-theme='dark'] .badge-soft {
+  background: #eaf2ff !important;
+  color: #0756b3 !important;
+  border-color: #bfdbfe !important;
+}
+
+html[data-theme='dark'] .warning,
+html[data-theme='dark'] .field-warning {
+  background: rgba(251, 191, 36, 0.16) !important;
+  border-color: rgba(251, 191, 36, 0.72) !important;
+  color: #fde68a !important;
+}
+
+@media (max-width: 980px) {
+  .topbar {
+    position: sticky !important;
+    top: 0 !important;
+  }
+
+  .topbar-inner {
+    width: min(100% - 0.85rem, 720px) !important;
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 0.55rem !important;
+    padding: 0.55rem 0 0.65rem !important;
+  }
+
+  .brand {
+    width: 100% !important;
+    min-width: 0 !important;
+    justify-content: center !important;
+    gap: 0.55rem !important;
+  }
+
+  .brand-mark {
+    width: 36px !important;
+    height: 36px !important;
+    border-radius: 11px !important;
+  }
+
+  .brand strong {
+    font-size: 0.95rem !important;
+  }
+
+  .brand small {
+    font-size: 0.78rem !important;
+  }
+
+  .main-nav {
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.42rem !important;
+  }
+
+  .main-nav a {
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 42px !important;
+    padding: 0.5rem 0.42rem !important;
+    font-size: 0.82rem !important;
+    line-height: 1.12 !important;
+    justify-content: center !important;
+    text-align: center !important;
+    white-space: normal !important;
+  }
+
+  .main-nav a[href='/preguntas-frecuentes'],
+  .main-nav a[href='/portal/interno/preguntas-frecuentes'] {
+    grid-column: 1 / -1 !important;
+  }
+
+  .header-actions {
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: 76px minmax(0, 1fr) !important;
+    align-items: stretch !important;
+    gap: 0.45rem !important;
+    min-width: 0 !important;
+  }
+
+  .header-actions .theme-switch {
+    justify-self: start !important;
+    align-self: center !important;
+    width: 60px !important;
+    min-width: 60px !important;
+    height: 32px !important;
+    margin: 0 !important;
+  }
+
+  .header-actions .theme-switch-slider::before {
+    height: 28px !important;
+    width: 28px !important;
+  }
+
+  .header-actions .theme-switch-input:checked + .theme-switch-slider::before {
+    transform: translateX(28px) !important;
+  }
+
+  .header-actions .welcome-chip {
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    min-height: 48px !important;
+    justify-content: center !important;
+    text-align: left !important;
+  }
+
+  .header-actions > .button:not(.header-button) {
+    grid-column: 1 / -1 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 44px !important;
+    padding: 0.58rem 0.7rem !important;
+    justify-content: center !important;
+  }
+
+  .header-actions .header-button {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+
+  .main-nav a.active::after,
+  .header-actions .button.active::after {
+    position: absolute !important;
+    left: 50% !important;
+    bottom: -0.82rem !important;
+    transform: translateX(-50%) !important;
+    margin: 0 !important;
+    font-size: 0.54rem !important;
+    padding: 0.1rem 0.34rem !important;
+    border-radius: 999px !important;
+    white-space: nowrap !important;
+  }
+
+  .page-container {
+    width: min(100% - 0.85rem, 720px) !important;
+    padding-top: 0.95rem !important;
+  }
+}
+
+@media (max-width: 520px) {
+  .topbar-inner {
+    width: calc(100% - 0.65rem) !important;
+    gap: 0.45rem !important;
+  }
+
+  .main-nav {
+    gap: 0.36rem !important;
+  }
+
+  .main-nav a {
+    min-height: 40px !important;
+    padding: 0.45rem 0.32rem !important;
+    font-size: 0.78rem !important;
+  }
+
+  .nav-svg {
+    width: 0.95rem !important;
+    height: 0.95rem !important;
+  }
+
+  .header-actions {
+    grid-template-columns: 68px minmax(0, 1fr) !important;
+    gap: 0.38rem !important;
+  }
+
+  .header-actions .theme-switch {
+    width: 58px !important;
+    min-width: 58px !important;
+    height: 31px !important;
+  }
+
+  .welcome-chip {
+    padding: 0.5rem 0.62rem !important;
+  }
+
+  .welcome-chip strong {
+    font-size: 0.9rem !important;
+  }
+
+  .welcome-chip span {
+    font-size: 0.82rem !important;
+  }
+
+  .header-actions > .button:not(.header-button) {
+    min-height: 42px !important;
+    font-size: 0.85rem !important;
+  }
+
+  .section-card,
+  .hero-card,
+  .auth-card,
+  .modal-card {
+    border-radius: 18px !important;
+  }
+}
