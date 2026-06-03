@@ -68,7 +68,15 @@ public sealed class AdministrationService(
         };
 
         await _providers.AddAsync(provider, cancellationToken);
-        await _providers.SaveChangesAsync(cancellationToken);
+
+        try
+        {
+            await _providers.SaveChangesAsync(cancellationToken);
+        }
+        catch (UniqueConstraintException)
+        {
+            return OperationResult<ProviderScheduleResponse>.Conflict("No pudimos guardar el horario. Revisa que las franjas no se solapen y vuelve a intentarlo.");
+        }
 
         var refreshedProvider = await _providers.GetByIdAsync(provider.Id, cancellationToken);
         return refreshedProvider is null
