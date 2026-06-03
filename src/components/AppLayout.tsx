@@ -53,7 +53,6 @@ export function AppLayout({ children }: LayoutProps) {
   const settingsAccess = hasSettingsAccess(session?.roles ?? []);
   const doctorAccess = isDoctorRole(session?.roles ?? []);
   const isPatient = session?.roles.includes('Patient') ?? false;
-
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
   }, [location.pathname]);
@@ -148,7 +147,9 @@ export function AppLayout({ children }: LayoutProps) {
         </div>
       </header>
 
-      <main className="page-container">{children}</main>
+      <main className="page-container">
+        {children}
+      </main>
 
       <footer className="footer">
         <div>
