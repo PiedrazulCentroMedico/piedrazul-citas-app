@@ -94,7 +94,8 @@ public sealed class ValidationTests
     public void ValidateBasicPatientData_ShouldReturnNoErrors_ForValidInput()
     {
         var errors = PatientInputValidator.ValidateBasicPatientData(
-            "12345678", "María", "Gomez", "3001234567", "ana@ejemplo.com");
+            "12345678", "María", "Gomez", "3001234567", "ana@ejemplo.com",
+            DateOnly.FromDateTime(DateTime.Today.AddYears(-30)));
 
         Assert.Empty(errors);
     }
