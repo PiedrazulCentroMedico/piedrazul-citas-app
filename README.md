@@ -1,357 +1,226 @@
-# Piedrazul - Sistema web de reserva de citas
+# Piedrazul — Sistema web de reserva de citas médicas
 
-Aplicación SPA desarrollada con **React + Vite** en el frontend y una solución **ASP.NET Core Web API** con **PostgreSQL** en el backend.
 
-## Lo que incluye esta entrega
-
-- Portal público para pacientes.
-- Reserva de cita como invitado.
-- Reserva de cita con cuenta para acceder a funciones adicionales.
-- Portal interno para administrador, agendador y médico/terapista.
-- Listado de citas por profesional y fecha.
-- Creación de citas para llamadas o WhatsApp.
-- Configuración de agenda y disponibilidad por profesional.
-- Exportación del listado de citas a **PDF**.
-- Validaciones de formulario en frontend y backend.
-- Integración preparada para **JWT + Keycloak**.
-- Modo **demo** para avanzar y probar sin bloquearte por autenticación externa.
-- Pruebas unitarias base para la lógica de validación y generación de franjas.
-
-## Estructura del proyecto
-
-```text
-piedrazul-citas-app/
-├─ backend/
-│  ├─ Piedrazul.sln
-│  ├─ keycloak/
-│  ├─ postgres/
-│  ├─ src/
-│  │  ├─ Piedrazul.Api/
-│  │  ├─ Piedrazul.Application/
-│  │  ├─ Piedrazul.Domain/
-│  │  └─ Piedrazul.Infrastructure/
-│  └─ tests/
-├─ src/
-├─ docker-compose.yml
-├─ .env.example
-└─ README.md
-```
-
-## Requisitos recomendados
-
-- Visual Studio 2022 o superior con carga de trabajo **ASP.NET y desarrollo web**.
-- .NET 8 SDK.
-- Node.js 20 o superior.
-- Docker Desktop.
-- PostgreSQL solo si no vas a usar Docker para la base de datos.
+Sistema web para la gestión y reserva de citas médicas del Centro Médico Piedrazul. Permite a los pacientes reservar citas en línea y al personal interno administrar la agenda de los médicos y terapistas.
 
 ---
 
-# 1) Levantar la aplicación rápido en modo demo
+## Funcionalidades principales
 
-Este modo es el más fácil para empezar. No depende de Keycloak para que el equipo pueda avanzar desde ya.
+- Reserva de citas como invitado o con cuenta registrada
+- Portal del paciente para ver historial y reagendar citas
+- Portal interno para administradores, agendadores y médicos
+- Configuración de disponibilidad y horarios por profesional
+- Exportación del listado de citas a PDF y CSV
+- Autenticación con JWT + Keycloak (modo demo disponible para desarrollo)
+- Notificaciones asíncronas vía RabbitMQ
 
-## Paso 1. Levanta PostgreSQL con Docker
+---
 
-En la carpeta raíz del proyecto ejecuta:
+## Tecnologías
 
-```bash
-docker compose up -d postgres
-```
+| Capa | Tecnología |
+|---|---|
+| Frontend | React 19 + TypeScript + Vite |
+| Backend | ASP.NET Core 10 (Clean Architecture) |
+| Base de datos | PostgreSQL 16 |
+| Caché | Redis |
+| Autenticación | Keycloak (JWT) |
+| Mensajería | RabbitMQ |
+| Contenedores | Docker + Docker Compose |
+| CI/CD | GitHub Actions |
+| Despliegue | Railway (backend) · Vercel (frontend) · Neon (base de datos) |
 
-Eso deja disponible PostgreSQL en:
+---
 
-- Host: `localhost`
-- Puerto: `5432`
-- Base de datos: `piedrazul`
-- Usuario: `postgres`
-- Clave: `postgres`
+## Equipo
 
-## Paso 2. Abre el backend en Visual Studio
+| Integrante | GitHub |
+|---|---|
+| Juan Felipe Ramírez | [@JUANRAM0101](https://github.com/JUANRAM0101) |
+| José Nicolás Bambagüe | [@nicolas28B](https://github.com/nicolas28B) |
+| Juan Camilo Meneses | [@Juanca08834](https://github.com/Juanca08834) |
+| Juan Alejandro Cárdenas | [@AlejoCardenas](https://github.com/AlejoCardenas) |
 
-1. Abre `backend/Piedrazul.sln`.
-2. Marca `Piedrazul.Api` como proyecto de inicio.
-3. Verifica que el archivo `backend/src/Piedrazul.Api/appsettings.Development.json` tenga:
+---
 
-```json
-"Authentication": {
-  "Mode": "Development"
-}
-```
+## Requisitos previos
 
-4. Ejecuta el proyecto.
+Antes de ejecutar el proyecto localmente asegurate de tener instalado:
 
-La API quedará en:
+- [Node.js 20 o superior](https://nodejs.org/)
+- [pnpm](https://pnpm.io/) — `npm install -g pnpm`
+- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/)
 
-```text
-http://localhost:5184
-```
+---
 
-Swagger:
+## Instalación y ejecución local
 
-```text
-http://localhost:5184/swagger
-```
+### Paso 1 — Clonar el repositorio
 
-
-o
-```text
-cd backend
-dotnet restore
-dotnet run --project src/Piedrazul.Api/Piedrazul.Api.csproj
-```
+git clone https://github.com/PiedrazulCentroMedico/piedrazul-citas-app.git
+cd piedrazul-citas-app
 
 
-## Paso 3. Configura el frontend
+### Paso 2 — Configurar las variables de entorno
+
+Copiá el archivo de ejemplo y completá los valores:
 
 
-En la raíz del proyecto crea un archivo `.env.local` con este contenido:
+cp .env.example .env
 
-```env
+
+El archivo `.env` es usado por Docker Compose para levantar PostgreSQL, Keycloak y RabbitMQ. **Nunca lo commitees al repositorio.**
+
+Para el frontend, creá un archivo `.env.local` en la raíz del proyecto:
+
+
 VITE_API_URL=http://localhost:5184
 VITE_AUTH_MODE=demo
 VITE_KEYCLOAK_URL=http://localhost:8080
 VITE_KEYCLOAK_REALM=piedrazul
 VITE_KEYCLOAK_CLIENT_ID=piedrazul-web
-```
 
-## Paso 4. Instala dependencias del frontend
 
-En la raíz del proyecto ejecuta:
+### Paso 3 — Levantar los servicios con Docker
 
-```bash
-npm install
-```
 
-## Paso 5. Ejecuta el frontend
-
-```bash
-npm run dev
-```
-
-La app quedará en:
-
-```text
-http://localhost:5173
-```
-
----
-
-# 2) Cómo usar la aplicación en modo demo
-
-## Paciente
-
-- En la página principal puedes:
-  - reservar como invitado,
-  - iniciar sesión,
-  - registrarte.
-- En modo demo, el botón **Iniciar sesión** entra como paciente demo.
-- Luego puedes abrir:
-  - `http://localhost:5173/portal/paciente`
-  - `http://localhost:5173/portal/paciente/perfil`
-
-## Portal interno
-
-Abre:
-
-```text
-http://localhost:5173/portal/interno/login
-```
-
-En modo demo tendrás tres botones:
-
-- Administrador demo
-- Agendador demo
-- Médico demo
-
-Con eso puedes probar:
-
-- listado de citas,
-- nueva cita,
-- configuración de disponibilidad,
-- exportación a PDF.
-
----
-
-# 3) Levantar la aplicación con Keycloak
-
-Cuando quieras usar autenticación JWT real, sigue estos pasos.
-
-## Paso 1. Levanta PostgreSQL y Keycloak
-
-Desde la raíz del proyecto ejecuta:
-
-```bash
 docker compose up -d
-```
+
 
 Esto levanta:
 
-- PostgreSQL en `localhost:5432`
-- Keycloak en `http://localhost:8080`
+| Servicio | URL local |
+|---|---|
+| PostgreSQL | `localhost:5432` |
+| Keycloak | `http://localhost:8080` |
+| RabbitMQ | `http://localhost:15672` (admin / piedrazul) |
+| Redis | `localhost:6379` |
 
-## Paso 2. Verifica la importación del realm
+### Paso 4 — Ejecutar el backend
 
-Se importa automáticamente el archivo:
 
-```text
-backend/keycloak/piedrazul-realm.json
-```
+dotnet run --project backend/src/Piedrazul.Api/Piedrazul.Api.csproj
 
-Realm esperado:
 
-```text
-piedrazul
-```
+La API queda disponible en:
 
-## Paso 3. Cambia el backend a modo Keycloak
+- API: `http://localhost:5184`
+- Swagger: `http://localhost:5184/swagger`
 
-En `backend/src/Piedrazul.Api/appsettings.Development.json` deja:
+### Paso 5 — Instalar dependencias del frontend
 
-```json
-{
-  "Authentication": {
-    "Mode": "Keycloak",
-    "Authority": "http://localhost:8080/realms/piedrazul",
-    "Audience": "piedrazul-api",
-    "RequireHttpsMetadata": false
-  }
-}
-```
 
-## Paso 4. Cambia el frontend a Keycloak
+pnpm install
 
-En `.env.local` deja:
 
-```env
-VITE_API_URL=http://localhost:5184
-VITE_AUTH_MODE=keycloak
-VITE_KEYCLOAK_URL=http://localhost:8080
-VITE_KEYCLOAK_REALM=piedrazul
-VITE_KEYCLOAK_CLIENT_ID=piedrazul-web
-```
+### Paso 6 — Ejecutar el frontend
 
-Luego reinicia el frontend:
 
-```bash
-npm run dev
-```
+pnpm dev
 
-## Usuarios internos de prueba
 
-Si el realm fue importado correctamente, puedes entrar con estos usuarios:
-
-- Administrador
-  - usuario: `admin.demo`
-  - clave: `Admin123*`
-- Agendador
-  - usuario: `agenda.demo`
-  - clave: `Agenda123*`
-- Médico
-  - usuario: `medico.demo`
-  - clave: `Medico123*`
-
-Los pacientes pueden registrarse desde la pantalla de Keycloak porque el realm tiene registro habilitado.
+La aplicación queda disponible en `http://localhost:5173`
 
 ---
 
-# 4) Qué hace cada área
+## Usuarios de prueba (modo demo)
 
-## Portal público / paciente
+### Portal del paciente
 
-- Inicio con información del centro médico.
-- Botones en el encabezado para iniciar sesión o registrarse.
-- Reserva como invitado con datos básicos.
-- Reserva con cuenta para acceder a funciones adicionales.
-- Portal del paciente para ver citas y actualizar perfil.
+En modo demo, el botón **"Iniciar sesión"** entra directamente como paciente demo.
 
-## Portal interno
+### Portal interno
 
-- Inicio de sesión por rol.
-- Listado de citas por médico/terapista y fecha.
-- Creación de citas para llamadas o WhatsApp.
-- Búsqueda/autocompletado básico por documento.
-- Configuración de semanas habilitadas y franjas por profesional.
-- Exportación del listado de citas a PDF.
+Abrí `http://localhost:5173/portal/interno/login` y seleccioná el rol:
+
+| Rol | Usuario | Contraseña |
+|---|---|---|
+| Administrador | `admin.demo` | `Admin123*` |
+| Agendador | `agenda.demo` | `Agenda123*` |
+| Médico | `medico.demo` | `Medico123*` |
 
 ---
 
-# 5) Validaciones implementadas
+## Variables de entorno
 
-## Frontend y backend
+### Frontend (`.env.local`)
 
-- Documento: solo números, 5 a 20 dígitos.
-- Celular: solo números, 7 a 15 dígitos.
-- Nombres y apellidos: letras, espacios, apóstrofe o guion, 2 a 80 caracteres.
-- Correo: opcional, máximo 150 caracteres y formato válido.
-- Observaciones: máximo 500 caracteres.
-- Intervalo entre citas: 10 a 120 minutos.
-- Reserva solo dentro de la ventana de semanas habilitada.
-- La franja debe existir y estar libre al momento de reservar.
+| Variable | Descripción | Valor por defecto |
+|---|---|---|
+| `VITE_API_URL` | URL del backend | `http://localhost:5184` |
+| `VITE_AUTH_MODE` | Modo de autenticación (`demo` o `keycloak`) | `demo` |
+| `VITE_KEYCLOAK_URL` | URL de Keycloak | `http://localhost:8080` |
+| `VITE_KEYCLOAK_REALM` | Realm de Keycloak | `piedrazul` |
+| `VITE_KEYCLOAK_CLIENT_ID` | Client ID de Keycloak | `piedrazul-web` |
 
----
+### Docker Compose (`.env`)
 
-# 6) Endpoints principales
+| Variable | Descripción |
+|---|---|
+| `POSTGRES_USER` | Usuario de PostgreSQL |
+| `POSTGRES_PASSWORD` | Contraseña de PostgreSQL |
+| `POSTGRES_DB` | Nombre de la base de datos |
+| `KEYCLOAK_ADMIN` | Usuario administrador de Keycloak |
+| `KEYCLOAK_ADMIN_PASSWORD` | Contraseña del administrador de Keycloak |
+| `RABBITMQ_USER` | Usuario de RabbitMQ |
+| `RABBITMQ_PASS` | Contraseña de RabbitMQ |
 
-## Públicos
-
-- `GET /api/public/info`
-- `GET /api/public/providers`
-- `GET /api/public/providers/{providerId}/availability?date=YYYY-MM-DD`
-- `POST /api/public/appointments`
-
-## Paciente autenticado
-
-- `GET /api/patient/profile`
-- `PUT /api/patient/profile`
-- `GET /api/patient/appointments`
-- `POST /api/patient/appointments`
-
-## Portal interno
-
-- `GET /api/internal/patients/search?document=...`
-- `GET /api/internal/appointments?providerId=...&date=YYYY-MM-DD`
-- `POST /api/internal/appointments`
-- `GET /api/internal/appointments/export/pdf?providerId=...&date=YYYY-MM-DD`
-
-## Configuración
-
-- `GET /api/admin/settings`
-- `PUT /api/admin/settings`
-- `GET /api/admin/provider-schedules`
-- `PUT /api/admin/provider-schedules/{providerId}`
+Ver el archivo [`.env.example`](.env.example) para los valores de referencia.
 
 ---
 
-# 7) Pruebas del frontend
+## Correr los tests
 
-Para compilar el frontend en producción:
+dotnet test backend/Piedrazul.sln
 
-```bash
-npm run build
+Para ver el reporte de cobertura:
+
+dotnet test backend/Piedrazul.sln --collect:"XPlat Code Coverage"
+
+---
+
+## Sistema desplegado en producción
+
+| Servicio | URL |
+|---|---|
+|  Frontend | https://piedrazul-citas-app.vercel.app |
+|  Backend | https://piedrazul-citas-app-production.up.railway.app |
+|  Health check | https://piedrazul-citas-app-production.up.railway.app/api/health |
+|  Repositorio | https://github.com/PiedrazulCentroMedico/piedrazul-citas-app |
+
+---
+
+## Estructura del proyecto
+
 ```
-
-Para previsualizar la compilación:
-
-```bash
-npm run preview
+piedrazul-citas-app/
+├─ .github/
+│  └─ workflows/
+│     ├─ ci.yml          # Pipeline de integración continua
+│     └─ cd.yml          # Pipeline de despliegue continuo
+├─ backend/
+│  ├─ src/
+│  │  ├─ Piedrazul.Api/           # Controladores y configuración del servidor
+│  │  ├─ Piedrazul.Application/   # Lógica de negocio e interfaces
+│  │  ├─ Piedrazul.Domain/        # Entidades y modelos del dominio
+│  │  └─ Piedrazul.Infrastructure/ # Repositorios, BD, caché, seguridad
+│  └─ tests/
+│     └─ Piedrazul.Domain.Tests/  # Pruebas unitarias
+├─ src/                           # Frontend React
+│  ├─ api/                        # Cliente HTTP
+│  ├─ auth/                       # Contexto de autenticación
+│  ├─ components/                 # Componentes reutilizables
+│  └─ pages/                      # Páginas de la aplicación
+├─ backend/Dockerfile             # Imagen Docker del backend
+├─ docker-compose.yml             # Servicios locales
+├─ vercel.json                    # Configuración de Vercel
+└─ .env.example                   # Variables de entorno de referencia
 ```
 
 ---
 
-# 8) Notas de desarrollo
+## Licencia
 
-- El backend usa `EnsureCreated()` para dejar la base lista rápidamente en ambiente de desarrollo.
-- Si luego quieres profesionalizar más el proyecto, el siguiente paso es agregar migraciones de Entity Framework.
-- La exportación quedó en PDF porque fue tu preferencia. Si el curso exige CSV además, se puede agregar un exportador paralelo sin cambiar la arquitectura general.
-- La arquitectura está separada por capas para facilitar mantenibilidad y crecimiento del proyecto.
-
----
-
-# 9) Qué te recomiendo hacer después
-
-1. Agregar migraciones EF Core.
-2. Vincular médicos internos reales con su disponibilidad propia.
-3. Añadir cancelación y reprogramación de citas.
-4. Incorporar pruebas unitarias adicionales del dominio y servicios.
-5. Ejecutar ZAP sobre frontend y backend para cumplir el requisito no funcional de seguridad.
+Proyecto académico — Universidad del Cauca, Ingeniería de Software III, 2026-1.
