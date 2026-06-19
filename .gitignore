@@ -20,3 +20,35 @@ appsettings.Staging.json
 # logs
 backend/src/Piedrazul.Api/logs/
 *.log
+
+# Local environment files
+.env
+.env.local
+.env.*.local
+
+# IDE settings
+.idea/
+.vscode/
+
+# .NET build artifacts
+bin/
+obj/
+[Bb]in/
+[Oo]bj/
+*.user
+*.suo
+*.rsuser
+
+# Node build artifacts
+node_modules/
+dist/
+build/
+.vite/
+
+# Logs
+*.log
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
